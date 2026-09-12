@@ -22,6 +22,7 @@ from se_lab.models.provider import (
     ModelProviderError,
     ModelRequest,
     ModelResponse,
+    request_identity,
 )
 from se_lab.policy.gateway import PolicyGateway
 from se_lab.runtime.workspace import Workspace
@@ -115,6 +116,7 @@ class MultiAgentConfig:
     provider_version: str = "mock-v1"
     model_name: str = "mock-baseline"
     max_model_calls: int = 4
+    max_tokens: int | None = None
     max_tool_calls: int = 10
     max_retries: int = 1
     max_wall_clock: int = 300
@@ -881,6 +883,26 @@ class MultiAgentWorkflow:
         )
         return reviewer_output
 
+    def _role_prompt(self, task: EvaluationTask, role: str, metadata: dict[str, Any]) -> str:
+        output = {
+            "planner": "Return a JSON implementation plan only.",
+            "implementer": "Return a valid unified git patch only.",
+            "tester": "Return a JSON test-result summary only.",
+            "reviewer": "Return a JSON review decision only.",
+        }.get(role, "Return a concise structured response only.")
+        return (
+            f"You are the SE-Lab {role} agent.\n"
+            f"Task: {task.description}\n"
+            f"Task ID: {task.task_id}\n"
+            f"Repository commit: {task.commit_sha}\n"
+            f"Target tests: {task.target_tests}\n"
+            f"Retained tests: {task.retained_tests}\n"
+            f"Allowed write paths: {task.allowed_write_paths}\n"
+            f"Protected paths: {task.protected_paths}\n"
+            f"Context: {metadata.get('planner_summary', '')}\n"
+            f"{output}"
+        )
+
     def _request_model(
         self,
         provider: ModelProvider,
@@ -897,12 +919,12 @@ class MultiAgentWorkflow:
             task_id=task.task_id,
             repository_path=task.repository_path,
             commit_sha=task.commit_sha,
-            prompt=f"Phase 4 {role} request for task {task.task_id}",
+            prompt=self._role_prompt(task, role, metadata),
             seed=config.seed,
             provider_name=config.provider_name,
             provider_version=config.provider_version,
             model_name=config.model_name,
-            max_tokens=None,
+            max_tokens=config.max_tokens,
             max_model_calls=config.max_model_calls,
             metadata={**metadata, "role": role},
         )
@@ -916,6 +938,7 @@ class MultiAgentWorkflow:
                 "provider_name": config.provider_name,
                 "provider_version": config.provider_version,
                 "model_name": config.model_name,
+                "request_identity": request_identity(request),
                 "metadata": metadata,
             },
             role=role,

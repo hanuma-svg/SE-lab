@@ -155,8 +155,30 @@ def _phase6_command(
     return 0 if audit.verdict == "PASS" else 1
 
 
-def _experiment_command(config_path: str, output: str | None = None) -> int:
+def _experiment_command(config_path: str, output: str | None = None, plan: bool = False) -> int:
     config = ExperimentConfig.model_validate_json(Path(config_path).read_text(encoding="utf-8"))
+    if plan:
+        run_count = len(config.variants) * config.repetitions * len(config.ablations)
+        max_calls = run_count * config.budget.max_model_calls
+        max_total_tokens = (
+            run_count * config.budget.max_total_tokens
+            if config.budget.max_total_tokens is not None
+            else None
+        )
+        payload = {
+            "experiment_id": config.experiment_id,
+            "provider": config.provider_name,
+            "model": config.model_name,
+            "runs": run_count,
+            "max_model_calls": max_calls,
+            "max_input_tokens_per_call": config.budget.max_input_tokens,
+            "max_output_tokens_per_call": config.budget.max_output_tokens,
+            "max_total_tokens": max_total_tokens,
+            "bounded": max_total_tokens is not None,
+            "executes": False,
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0 if payload["bounded"] else 1
     result = ExperimentRunner().run(config)
     payload = result.model_dump(mode="json")
     if output:
@@ -349,6 +371,7 @@ def main(argv: list[str] | None = None) -> int:
     experiment_parser = subparsers.add_parser("experiment", help="Run a deterministic matched baseline/treatment experiment")
     experiment_parser.add_argument("--config", required=True)
     experiment_parser.add_argument("--output")
+    experiment_parser.add_argument("--plan", action="store_true")
     experiment_parser.set_defaults(handler=_experiment_command)
 
     compare_parser = subparsers.add_parser("compare", help="Compare two recorded experiment results")
@@ -407,7 +430,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "phase6":
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
         if args.command == "experiment":
-            return args.handler(args.config, args.output)
+            return args.handler(args.config, args.output, args.plan)
         if args.command == "compare":
             return args.handler(args.left, args.right)
         if args.command == "benchmark":

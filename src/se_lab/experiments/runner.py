@@ -14,6 +14,7 @@ from se_lab.agents import (
 )
 from se_lab.evaluation import EvaluationTask, evaluate_events
 from se_lab.experiments.contracts import ExperimentConfig, ExperimentResult, RunRecord
+from se_lab.models.provider import BudgetedModelProvider, create_provider
 
 
 class ExperimentRunner:
@@ -71,6 +72,15 @@ class ExperimentRunner:
         evidence_root = Path(config.evidence_dir) / config.experiment_id / run_id
         events_dir = evidence_root / "events"
         artifacts_dir = evidence_root / "artifacts"
+        provider = None
+        if config.provider_name != "mock":
+            provider = BudgetedModelProvider(
+                create_provider(config.provider_name),
+                max_calls=config.budget.max_model_calls,
+                max_input_tokens=config.budget.max_input_tokens,
+                max_output_tokens=config.budget.max_output_tokens,
+                max_total_tokens=config.budget.max_total_tokens,
+            )
         started = time.monotonic()
         if variant == "baseline":
             result = SingleAgentBaseline().run(
@@ -81,6 +91,8 @@ class ExperimentRunner:
                     max_model_calls=config.budget.max_model_calls,
                     max_wall_clock=config.budget.max_wall_clock,
                     max_retries=0 if ablation == "no_retries" else config.budget.max_retries,
+                    max_tokens=config.budget.max_tokens,
+                    provider=provider,
                     provider_name=config.provider_name,
                     provider_version=config.provider_version,
                     model_name=config.model_name,
@@ -104,6 +116,7 @@ class ExperimentRunner:
                     max_tool_calls=config.budget.max_tool_calls,
                     max_wall_clock=config.budget.max_wall_clock,
                     max_retries=0 if ablation == "no_retries" else config.budget.max_retries,
+                    provider=provider,
                     provider_name=config.provider_name,
                     provider_version=config.provider_version,
                     model_name=config.model_name,

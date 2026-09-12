@@ -23,6 +23,7 @@ from se_lab.models.provider import (
     ModelProviderError,
     ModelRequest,
     ModelResponse,
+    request_identity,
 )
 from se_lab.policy.gateway import PolicyGateway
 from se_lab.runtime.workspace import Workspace
@@ -156,6 +157,20 @@ class SingleAgentBaseline:
                     "provider_version": baseline_config.provider_version,
                     "model_name": baseline_config.model_name,
                     "prompt_hash": self._hash_text(prompt),
+                    "request_identity": request_identity(
+                        ModelRequest(
+                            task_id=task_obj.task_id,
+                            repository_path=task_obj.repository_path,
+                            commit_sha=task_obj.commit_sha,
+                            prompt=prompt,
+                            seed=baseline_config.seed,
+                            provider_name=baseline_config.provider_name,
+                            provider_version=baseline_config.provider_version,
+                            model_name=baseline_config.model_name,
+                            max_tokens=baseline_config.max_tokens,
+                            max_model_calls=baseline_config.max_model_calls,
+                        )
+                    ),
                     "max_tokens": baseline_config.max_tokens,
                     "max_model_calls": baseline_config.max_model_calls,
                     "seed": baseline_config.seed,

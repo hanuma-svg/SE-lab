@@ -11,6 +11,9 @@ class MatchedBudget(BaseModel):
     max_model_calls: int = Field(default=4, ge=1)
     max_tool_calls: int = Field(default=10, ge=0)
     max_tokens: int | None = Field(default=None, ge=1)
+    max_input_tokens: int | None = Field(default=None, ge=1)
+    max_output_tokens: int | None = Field(default=None, ge=1)
+    max_total_tokens: int | None = Field(default=None, ge=1)
     max_wall_clock: int = Field(default=300, ge=1)
     max_retries: int = Field(default=1, ge=0)
 

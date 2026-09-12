@@ -1,0 +1,25 @@
+{
+  "experiment_id": "real-provider-pilot",
+  "task_path": "benchmarks/smoke_tasks/success_readme.json",
+  "variants": ["baseline", "multi_agent"],
+  "repetitions": 1,
+  "seed": 11,
+  "budget": {
+    "max_model_calls": 4,
+    "max_tool_calls": 10,
+    "max_tokens": 256,
+    "max_input_tokens": 1600,
+    "max_output_tokens": 256,
+    "max_total_tokens": 1856,
+    "max_wall_clock": 60,
+    "max_retries": 0
+  },
+  "provider_name": "openai-compatible",
+  "provider_version": "v1",
+  "model_name": "REPLACE_WITH_APPROVED_MODEL",
+  "evidence_dir": ".se-lab/real-provider-pilot",
+  "metadata": {
+    "purpose": "readiness-only; do not execute automatically",
+    "credentials": "SE_LAB_API_KEY and SE_LAB_API_BASE are environment-only"
+  }
+}
