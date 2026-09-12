@@ -134,7 +134,23 @@ class OpenAICompatibleProvider:
             with urllib.request.urlopen(http_request, timeout=self.timeout_seconds) as response:
                 data = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            raise ModelProviderError(f"Real provider HTTP failure: {exc.code}") from exc
+            diagnostic = f"HTTP {exc.code}"
+            try:
+                body = exc.read(512).decode("utf-8", errors="replace")
+                parsed = json.loads(body)
+                if isinstance(parsed, dict):
+                    error = parsed.get("error")
+                    if isinstance(error, dict):
+                        safe_fields = {}
+                        for key in ("code", "type", "message"):
+                            value = error.get(key)
+                            if isinstance(value, str):
+                                safe_fields[key] = value[:200]
+                        if safe_fields:
+                            diagnostic += f"; error={safe_fields}"
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                pass
+            raise ModelProviderError(f"Real provider HTTP failure: {diagnostic}") from exc
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             raise ModelProviderError(f"Real provider request failed: {type(exc).__name__}") from exc
 
