@@ -376,6 +376,9 @@ class IndependentEvaluator:
         )
 
     def _extract_patch_paths(self, patch_text: str) -> list[str]:
+        # Git may emit terminal color codes when color.ui is configured as
+        # always; strip presentation bytes before parsing the unified diff.
+        patch_text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", patch_text)
         paths: list[str] = []
         for line in patch_text.splitlines():
             if line.startswith("+++ "):
@@ -413,8 +416,11 @@ class IndependentEvaluator:
         if git_executable is None:
             raise RuntimeError("git is required to apply evaluation patches")
 
+        patch_text = patch_path.read_text(encoding="utf-8")
+        patch_text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", patch_text)
         apply = subprocess.run(
-            [git_executable, "-C", str(repo_root), "apply", str(patch_path)],
+            [git_executable, "-C", str(repo_root), "apply", "-"],
+            input=patch_text,
             capture_output=True,
             text=True,
             check=False,

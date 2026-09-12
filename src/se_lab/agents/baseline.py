@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -452,9 +453,9 @@ class SingleAgentBaseline:
                 for key in ("patch", "candidate_patch"):
                     candidate = payload.get(key)
                     if isinstance(candidate, str) and candidate.strip():
-                        return candidate
+                        return re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", candidate)
             raise ValueError("Malformed model response: JSON payload did not contain a patch string.")
-        return content
+        return re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", content)
 
     def _extract_patch_paths(self, patch_text: str) -> list[str]:
         paths: list[str] = []

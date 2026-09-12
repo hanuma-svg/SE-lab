@@ -5,7 +5,9 @@ SE-lab is an evaluation platform for deterministic software-engineering tasks. T
 - Phase 1: core contracts, artifact/event storage, replay, reporting, and CLI scaffolding
 - Phase 2: secure workspace and policy gateway enforcement
 - Phase 3: independent evaluator for deterministic, external validation
-- Phase 4 (current): a minimal bounded multi-agent workflow with Planner, Implementer, Tester, and Reviewer roles, using the provider abstraction and policy gateway while remaining offline and deterministic
+- Phase 4: a minimal bounded multi-agent workflow with Planner, Implementer, Tester, and Reviewer roles, using the provider abstraction and policy gateway while remaining offline and deterministic
+- Phase 5: deterministic record/replay with normalized request identity and mismatch detection
+- Phase 6: independent evaluation of quality, safety, coordination, evidence, efficiency, and failure classes
 
 ## Phase 4 multi-agent workflow
 
@@ -42,6 +44,18 @@ Optional flags:
 ### Offline test pattern
 
 The workflow is designed for deterministic offline use. The built-in mock provider returns the task's `mock_patch`, so end-to-end tests can execute without external model APIs.
+
+## Phase 6 evaluation audit
+
+Phase 6 consumes only externally observable `EventEnvelope` records and artifact hashes. It does not import agent or model implementations. The audit reports separate quality, safety, coordination, evidence, and efficiency metrics and never combines them into an arbitrary weighted score.
+
+Run an audit for a recorded run:
+
+```bash
+se-lab phase6 --run-id RUN_ID --events-dir .se-lab/events --artifacts-dir .se-lab/artifacts
+```
+
+Evidence validation is fail-closed: malformed events, missing causal parents, non-contiguous sequences, missing terminal evidence, and corrupted referenced artifacts are classified as `INSUFFICIENT_EVIDENCE` and cannot produce an unqualified `PASS`.
 
 ### Scope boundaries
 

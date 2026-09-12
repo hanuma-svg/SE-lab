@@ -12,7 +12,7 @@ from se_lab.agents import (
 )
 from se_lab.artifacts.store import ArtifactStore
 from se_lab.contracts import EventEnvelope, RunManifest
-from se_lab.evaluation import EvaluationTask, IndependentEvaluator
+from se_lab.evaluation import EvaluationTask, IndependentEvaluator, evaluate_run
 from se_lab.events.store import EventStore
 from se_lab.replay.replay import record_run, replay_run
 from se_lab.replay.store import RecordStore
@@ -123,6 +123,16 @@ def _evaluate_command(task: str, patch: str) -> int:
     return 0
 
 
+def _phase6_command(
+    run_id: str,
+    events_dir: str = ".se-lab/events",
+    artifacts_dir: str = ".se-lab/artifacts",
+) -> int:
+    audit = evaluate_run(run_id, EventStore(events_dir), ArtifactStore(artifacts_dir))
+    print(json.dumps(audit.model_dump(mode="json"), indent=2, sort_keys=True))
+    return 0 if audit.verdict == "PASS" else 1
+
+
 def _baseline_command(
     task: str,
     *,
@@ -228,6 +238,12 @@ def main(argv: list[str] | None = None) -> int:
     evaluate_parser.add_argument("--patch", required=True)
     evaluate_parser.set_defaults(handler=_evaluate_command)
 
+    phase6_parser = subparsers.add_parser("phase6", help="Audit an externally recorded run with Phase 6 metrics")
+    phase6_parser.add_argument("--run-id", required=True)
+    phase6_parser.add_argument("--events-dir", default=".se-lab/events")
+    phase6_parser.add_argument("--artifacts-dir", default=".se-lab/artifacts")
+    phase6_parser.set_defaults(handler=_phase6_command)
+
     baseline_parser = subparsers.add_parser("baseline", help="Run the single-agent baseline offline against a deterministic task")
     baseline_parser.add_argument("--task", required=True)
     baseline_parser.add_argument("--run-id")
@@ -271,6 +287,8 @@ def main(argv: list[str] | None = None) -> int:
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir, args.records_dir)
         if args.command == "evaluate":
             return args.handler(args.task, args.patch)
+        if args.command == "phase6":
+            return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
         if args.command == "baseline":
             return args.handler(
                 args.task,
