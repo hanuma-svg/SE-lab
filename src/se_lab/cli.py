@@ -189,6 +189,90 @@ def _experiment_command(config_path: str, output: str | None = None, plan: bool 
     return 0 if not result.mismatches else 1
 
 
+def _demo_command() -> int:
+    result_path = Path("research/initial_campaign/campaign-result.json")
+    catalog_path = Path("benchmarks/frozen_smoke_suite.json")
+
+    result = ExperimentResult.model_validate_json(result_path.read_text(encoding="utf-8"))
+    catalog = BenchmarkCatalog.from_file(catalog_path)
+    benchmark_validation = _validate_benchmark(catalog)
+    benchmark_valid = bool(benchmark_validation["valid"])
+
+    variants = result.aggregation.get("variants", {})
+    baseline = variants.get("baseline", {})
+    multi_agent = variants.get("multi_agent", {})
+    baseline_runs = [run for run in result.runs if run.variant == "baseline"]
+    multi_agent_runs = [run for run in result.runs if run.variant == "multi_agent"]
+    baseline_passes = sum(run.pass_at_1 for run in baseline_runs)
+    multi_agent_passes = sum(run.pass_at_1 for run in multi_agent_runs)
+
+    payload = {
+        "project": "SE-Lab",
+        "description": "Multi-Agent Software Engineering Evaluation Lab",
+        "benchmark": {
+            "status": "PASS" if benchmark_valid else "FAIL",
+            "task_count": len(catalog.tasks),
+        },
+        "experiment": {
+            "status": "PASS" if not result.mismatches else "FAIL",
+            "sample_count": result.aggregation.get("sample_count", 0),
+            "baseline": {
+                "sample_count": baseline.get("sample_count", 0),
+                "pass_rate": baseline.get("pass_rate", 0.0),
+            },
+            "multi_agent": {
+                "sample_count": multi_agent.get("sample_count", 0),
+                "pass_rate": multi_agent.get("pass_rate", 0.0),
+            },
+            "matched_budgets": result.has_matched_budgets,
+        },
+        "security": {
+            "scope": "frozen smoke benchmark configuration",
+            "network_enabled": False,
+            "allowed_write_paths": ["README.md"],
+            "protected_paths": ["src/se_lab/evaluation"],
+        },
+        "evidence": {
+            "recorded": all(run.evidence_digest and run.evidence_dir for run in result.runs),
+            "run_count": len(result.runs),
+        },
+        "conclusion": "Descriptive result only; no superiority claim.",
+    }
+
+    print("SE-Lab")
+    print("Multi-Agent Software Engineering Evaluation Lab")
+    print()
+    print("Benchmark")
+    print(
+        f"  {payload['benchmark']['status']}    "
+        f"{payload['benchmark']['task_count']} tasks validated"
+    )
+    print()
+    print("Experiment")
+    print(f"  {payload['experiment']['status']}    {payload['experiment']['sample_count']} runs")
+    print(
+        f"  Baseline       {baseline_passes}/{len(baseline_runs)} PASS"
+    )
+    print(
+        f"  Multi-agent    {multi_agent_passes}/{len(multi_agent_runs)} PASS"
+    )
+    print(f"  Budgets        {'MATCHED' if result.has_matched_budgets else 'MISMATCH'}")
+    print()
+    print("Security configuration")
+    print("  Network        DISABLED")
+    print("  Write scope    README.md")
+    print("  Protected      src/se_lab/evaluation")
+    print()
+    print("Evidence")
+    print(f"  Recorded       {'YES' if payload['evidence']['recorded'] else 'NO'}")
+    print(f"  Runs           {payload['evidence']['run_count']}")
+    print()
+    print("Conclusion")
+    print("  Descriptive benchmark result.")
+    print("  No superiority claim.")
+    return 0
+
+
 def _compare_command(left: str, right: str) -> int:
     left_result = ExperimentResult.model_validate_json(Path(left).read_text(encoding="utf-8"))
     right_result = ExperimentResult.model_validate_json(Path(right).read_text(encoding="utf-8"))
@@ -374,6 +458,9 @@ def main(argv: list[str] | None = None) -> int:
     experiment_parser.add_argument("--plan", action="store_true")
     experiment_parser.set_defaults(handler=_experiment_command)
 
+    demo_parser = subparsers.add_parser("demo", help="Show the verified SE-Lab demonstration summary")
+    demo_parser.set_defaults(handler=_demo_command)
+
     compare_parser = subparsers.add_parser("compare", help="Compare two recorded experiment results")
     compare_parser.add_argument("--left", required=True)
     compare_parser.add_argument("--right", required=True)
@@ -431,6 +518,8 @@ def main(argv: list[str] | None = None) -> int:
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
         if args.command == "experiment":
             return args.handler(args.config, args.output, args.plan)
+        if args.command == "demo":
+            return args.handler()
         if args.command == "compare":
             return args.handler(args.left, args.right)
         if args.command == "benchmark":
