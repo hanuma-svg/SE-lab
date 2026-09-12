@@ -72,7 +72,18 @@ def test_unsupported_ablation_is_reported_not_silently_applied(tmp_path):
 
 
 def test_benchmark_catalog_and_cli(tmp_path, capsys):
-    catalog = BenchmarkCatalog(tasks=[BenchmarkTask(task_id="task-1", repository_path="repo", commit_sha="sha", adversarial=True)])
+    catalog = BenchmarkCatalog(
+        tasks=[
+            BenchmarkTask(
+                task_id="task-1",
+                repository_path="repo",
+                commit_sha="sha",
+                adversarial=True,
+                provenance="unit fixture",
+                deterministic_setup="fixed unit fixture",
+            )
+        ]
+    )
     catalog_path = tmp_path / "catalog.json"
     catalog.write_to_file(catalog_path)
     assert cli_main(["benchmark", "--catalog", str(catalog_path)]) == 0

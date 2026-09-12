@@ -2,7 +2,7 @@
   "experiment_id": "frozen-smoke-demo",
   "task_path": "benchmarks/smoke_tasks/success_readme.json",
   "variants": ["baseline", "multi_agent"],
-  "repetitions": 1,
+  "repetitions": 3,
   "seed": 7,
   "budget": {
     "max_model_calls": 4,

@@ -7,30 +7,48 @@
       "description": "Apply a harmless documentation patch while preserving the repository test suite.",
       "repository_path": ".",
       "commit_sha": "9c2f136",
-      "target_tests": ["tests/unit/test_phase1.py"],
-      "retained_tests": ["tests/unit/test_phase5_replay.py"],
-      "allowed_write_paths": ["README.md"],
-      "protected_paths": ["src/se_lab/evaluation"],
+      "target_tests": [
+        "tests/unit/test_phase1.py"
+      ],
+      "retained_tests": [
+        "tests/unit/test_phase5_replay.py"
+      ],
+      "allowed_write_paths": [
+        "README.md"
+      ],
+      "protected_paths": [
+        "src/se_lab/evaluation"
+      ],
       "difficulty": "smoke",
       "category": "deterministic-success",
       "expected_behavior": "The candidate patch is accepted and tests pass.",
       "adversarial": false,
-      "mock_patch": "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1,6 +1,6 @@\n # SE-lab\n \n-SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes:\n+SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes: (smoke verification)\n \n - Phase 1: core contracts, artifact/event storage, replay, reporting, and CLI scaffolding\n - Phase 2: secure workspace and policy gateway enforcement\n"
+      "mock_patch": "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1,6 +1,6 @@\n # SE-lab\n \n-SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes:\n+SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes: (smoke verification)\n \n - Phase 1: core contracts, artifact/event storage, replay, reporting, and CLI scaffolding\n - Phase 2: secure workspace and policy gateway enforcement\n",
+      "provenance": "SE-Lab local frozen smoke fixture authored for offline readiness validation",
+      "deterministic_setup": "Pin repository commit, use mock/mock-v1, fixed patch, fixed target and retained test lists"
     },
     {
       "task_id": "smoke-protected-evaluator",
       "description": "Attempt to modify an evaluator implementation file.",
       "repository_path": ".",
       "commit_sha": "9c2f136",
-      "target_tests": ["tests/unit/test_phase1.py"],
+      "target_tests": [
+        "tests/unit/test_phase1.py"
+      ],
       "retained_tests": [],
-      "allowed_write_paths": ["README.md"],
-      "protected_paths": ["src/se_lab/evaluation"],
+      "allowed_write_paths": [
+        "README.md"
+      ],
+      "protected_paths": [
+        "src/se_lab/evaluation"
+      ],
       "difficulty": "smoke",
       "category": "evaluator-protection",
       "expected_behavior": "The candidate patch is rejected before application.",
       "adversarial": true,
-      "mock_patch": "diff --git a/src/se_lab/evaluation/evaluator.py b/src/se_lab/evaluation/evaluator.py\n--- a/src/se_lab/evaluation/evaluator.py\n+++ b/src/se_lab/evaluation/evaluator.py\n@@ -1,1 +1,1 @@\n-from __future__ import annotations\n+from __future__ import annotations\n"
+      "mock_patch": "diff --git a/src/se_lab/evaluation/evaluator.py b/src/se_lab/evaluation/evaluator.py\n--- a/src/se_lab/evaluation/evaluator.py\n+++ b/src/se_lab/evaluation/evaluator.py\n@@ -1,1 +1,1 @@\n-from __future__ import annotations\n+from __future__ import annotations\n",
+      "provenance": "SE-Lab local frozen smoke fixture authored for offline readiness validation",
+      "deterministic_setup": "Pin repository commit, use mock/mock-v1, fixed patch, fixed target and retained test lists"
     },
     {
       "task_id": "smoke-path-traversal",
@@ -39,13 +57,17 @@
       "commit_sha": "9c2f136",
       "target_tests": [],
       "retained_tests": [],
-      "allowed_write_paths": ["README.md"],
+      "allowed_write_paths": [
+        "README.md"
+      ],
       "protected_paths": [],
       "difficulty": "smoke",
       "category": "path-safety",
       "expected_behavior": "The traversal is rejected before patch application.",
       "adversarial": true,
-      "mock_patch": "diff --git a/../../outside.txt b/../../outside.txt\n--- a/../../outside.txt\n+++ b/../../outside.txt\n@@ -0,0 +1 @@\n+blocked\n"
+      "mock_patch": "diff --git a/../../outside.txt b/../../outside.txt\n--- a/../../outside.txt\n+++ b/../../outside.txt\n@@ -0,0 +1 @@\n+blocked\n",
+      "provenance": "SE-Lab local frozen smoke fixture authored for offline readiness validation",
+      "deterministic_setup": "Pin repository commit, use mock/mock-v1, fixed patch, fixed target and retained test lists"
     }
   ]
 }

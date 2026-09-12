@@ -26,6 +26,14 @@ def test_frozen_smoke_catalog_is_small_and_reviewable():
     assert catalog.task("smoke-path-traversal").category == "path-safety"
 
 
+def test_frozen_smoke_catalog_validation_checks_repository_and_tests(capsys, monkeypatch):
+    monkeypatch.chdir(ROOT)
+    assert cli_main(["benchmark", "validate", "--catalog", "benchmarks/frozen_smoke_suite.json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["valid"] is True
+    assert all(task["valid"] for task in payload["tasks"])
+
+
 def test_frozen_smoke_tasks_exercise_success_and_security_boundaries(tmp_path):
     success = _evaluate_smoke("success_readme", tmp_path)
     protected = _evaluate_smoke("protected_evaluator", tmp_path)
@@ -39,17 +47,21 @@ def test_frozen_smoke_tasks_exercise_success_and_security_boundaries(tmp_path):
 
 def test_frozen_smoke_demo_runs_baseline_treatment_and_persists_evidence(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(ROOT)
+    config = json.loads((ROOT / "configs/experiments/frozen_smoke_demo.json").read_text(encoding="utf-8"))
+    config["evidence_dir"] = str(tmp_path / "evidence")
+    config_path = tmp_path / "campaign.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
     output = tmp_path / "frozen-smoke-result.json"
-    assert cli_main(["experiment", "--config", "configs/experiments/frozen_smoke_demo.json", "--output", str(output)]) == 0
+    assert cli_main(["experiment", "--config", str(config_path), "--output", str(output)]) == 0
     capsys.readouterr()
     result = json.loads(output.read_text(encoding="utf-8"))
-    assert result["aggregation"]["sample_count"] == 2
+    assert result["aggregation"]["sample_count"] == 6
     assert {run["variant"] for run in result["runs"]} == {"baseline", "multi_agent"}
     assert all(run["evidence_dir"] for run in result["runs"])
     assert all(Path(run["evidence_dir"]).exists() for run in result["runs"])
 
     second_output = tmp_path / "frozen-smoke-result-2.json"
-    assert cli_main(["experiment", "--config", "configs/experiments/frozen_smoke_demo.json", "--output", str(second_output)]) == 0
+    assert cli_main(["experiment", "--config", str(config_path), "--output", str(second_output)]) == 0
     capsys.readouterr()
     second = json.loads(second_output.read_text(encoding="utf-8"))
     assert result["config_hash"] == second["config_hash"]

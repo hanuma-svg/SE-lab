@@ -1,0 +1,11 @@
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,6 @@
+ # SE-lab
+ 
+-SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes:
++SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes: (smoke verification)
+ 
+ - Phase 1: core contracts, artifact/event storage, replay, reporting, and CLI scaffolding
+ - Phase 2: secure workspace and policy gateway enforcement

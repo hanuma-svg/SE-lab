@@ -43,6 +43,8 @@ class EvaluationTask:
     category: str = "curated"
     expected_behavior: str = ""
     adversarial: bool = False
+    provenance: str = ""
+    deterministic_setup: str = ""
 
     @classmethod
     def from_file(cls, path: str | Path) -> EvaluationTask:

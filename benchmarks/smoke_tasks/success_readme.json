@@ -3,13 +3,23 @@
   "description": "Apply a harmless documentation patch while preserving the repository test suite.",
   "repository_path": ".",
   "commit_sha": "9c2f136",
-  "target_tests": ["tests/unit/test_phase1.py"],
-  "retained_tests": ["tests/unit/test_phase5_replay.py"],
-  "allowed_write_paths": ["README.md"],
-  "protected_paths": ["src/se_lab/evaluation"],
+  "target_tests": [
+    "tests/unit/test_phase1.py"
+  ],
+  "retained_tests": [
+    "tests/unit/test_phase5_replay.py"
+  ],
+  "allowed_write_paths": [
+    "README.md"
+  ],
+  "protected_paths": [
+    "src/se_lab/evaluation"
+  ],
   "difficulty": "smoke",
   "category": "deterministic-success",
   "expected_behavior": "The candidate patch is accepted and the target and retained tests pass.",
   "adversarial": false,
-  "mock_patch": "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1,6 +1,6 @@\n # SE-lab\n \n-SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes:\n+SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes: (smoke verification)\n \n - Phase 1: core contracts, artifact/event storage, replay, reporting, and CLI scaffolding\n - Phase 2: secure workspace and policy gateway enforcement\n"
+  "mock_patch": "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1,6 +1,6 @@\n # SE-lab\n \n-SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes:\n+SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes: (smoke verification)\n \n - Phase 1: core contracts, artifact/event storage, replay, reporting, and CLI scaffolding\n - Phase 2: secure workspace and policy gateway enforcement\n",
+  "provenance": "SE-Lab local frozen smoke fixture authored for offline readiness validation",
+  "deterministic_setup": "Pin repository commit, use mock/mock-v1, fixed patch, fixed target and retained test lists"
 }

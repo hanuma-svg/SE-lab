@@ -1,0 +1,23 @@
+{
+  "duplicate_task_ids": [],
+  "task_count": 3,
+  "tasks": [
+    {
+      "errors": [],
+      "task_id": "smoke-success-readme",
+      "valid": true
+    },
+    {
+      "errors": [],
+      "task_id": "smoke-protected-evaluator",
+      "valid": true
+    },
+    {
+      "errors": [],
+      "task_id": "smoke-path-traversal",
+      "valid": true
+    }
+  ],
+  "valid": true,
+  "validation_note": "Schema, provenance, repository commit, and declared test paths were checked; execution is performed by the smoke and experiment tests."
+}

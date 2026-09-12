@@ -1,0 +1,12 @@
+{
+  "content": "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1,6 +1,6 @@\n # SE-lab\n \n-SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes:\n+SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes: (smoke verification)\n \n - Phase 1: core contracts, artifact/event storage, replay, reporting, and CLI scaffolding\n - Phase 2: secure workspace and policy gateway enforcement\n",
+  "provider_name": "mock",
+  "provider_version": "mock-v1",
+  "model_name": "mock-baseline",
+  "prompt_hash": "ef781e1ed0fd4bcc36273248a761bf85298b258b8393f60876cde8b8e68b833f",
+  "usage": {
+    "prompt_tokens": 64,
+    "completion_tokens": 65
+  },
+  "finish_reason": "stop"
+}

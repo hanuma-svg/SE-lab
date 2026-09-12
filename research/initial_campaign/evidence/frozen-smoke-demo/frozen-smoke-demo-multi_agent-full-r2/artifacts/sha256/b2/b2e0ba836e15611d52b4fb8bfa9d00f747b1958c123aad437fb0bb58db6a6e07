@@ -1,0 +1,12 @@
+{
+  "content": "{\"run_id\": \"frozen-smoke-demo-multi_agent-full-r2\", \"task_id\": \"smoke-success-readme\", \"summary\": \"Plan a bounded implementation for task smoke-success-readme.\", \"plan_steps\": [\"inspect repository state and task constraints\", \"prepare a minimal candidate patch\", \"validate the patch through approved tests\", \"request reviewer decision\"], \"affected_paths\": [\"README.md\"], \"expected_tests\": [\"tests/unit/test_phase1.py\"], \"retained_tests\": [\"tests/unit/test_phase5_replay.py\"], \"artifact_references\": []}",
+  "provider_name": "mock",
+  "provider_version": "mock-v1",
+  "model_name": "mock-baseline",
+  "prompt_hash": "1fade7d9d379724d65bf0ebe89af71ff22344fc2fcde4c4a0bf85927af8aa223",
+  "usage": {
+    "prompt_tokens": 7,
+    "completion_tokens": 41
+  },
+  "finish_reason": "stop"
+}

@@ -23,6 +23,8 @@ class BenchmarkTask(BaseModel):
     expected_behavior: str = ""
     adversarial: bool = False
     mock_patch: str = ""
+    provenance: str = Field(min_length=1)
+    deterministic_setup: str = Field(min_length=1)
 
 
 class BenchmarkCatalog(BaseModel):

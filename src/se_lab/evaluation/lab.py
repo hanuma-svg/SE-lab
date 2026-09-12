@@ -181,14 +181,33 @@ def _artifact_refs(events: Iterable[EventEnvelope]) -> list[str]:
     refs: list[str] = []
     def visit(value: Any) -> None:
         if isinstance(value, dict):
+            candidate = value.get("sha256")
+            if (
+                isinstance(candidate, str)
+                and len(candidate) == 64
+                and all(char in "0123456789abcdef" for char in candidate)
+                and "path" in value
+                and "object_type" in value
+                and candidate not in refs
+            ):
+                refs.append(candidate)
             for key, item in value.items():
-                if key != "path":
+                if key == "artifact_refs":
+                    candidates = item if isinstance(item, list) else [item]
+                    for candidate in candidates:
+                        if (
+                            isinstance(candidate, str)
+                            and len(candidate) == 64
+                            and all(char in "0123456789abcdef" for char in candidate)
+                            and candidate not in refs
+                        ):
+                            refs.append(candidate)
+                    continue
+                if key not in {"path", "sha256"}:
                     visit(item)
         elif isinstance(value, list):
             for item in value:
                 visit(item)
-        elif isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value) and value not in refs:
-            refs.append(value)
     for event in events:
         visit(_payload(event))
     return refs

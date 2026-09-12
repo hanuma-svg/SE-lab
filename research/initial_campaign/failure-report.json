@@ -1,0 +1,30 @@
+{
+  "by_class": {
+    "baseline": {
+      "failure_classes": {
+        "SUCCESS": 3
+      },
+      "mean_model_calls": 1.0,
+      "mean_retries": 0.0,
+      "mean_tool_calls": 1.0,
+      "mean_wall_clock_duration_seconds": 2.066804,
+      "pass_rate": 1.0,
+      "sample_count": 3
+    },
+    "multi_agent": {
+      "failure_classes": {
+        "SUCCESS": 3
+      },
+      "mean_model_calls": 2.0,
+      "mean_retries": 0.0,
+      "mean_tool_calls": 2.0,
+      "mean_wall_clock_duration_seconds": 4.034439666666667,
+      "pass_rate": 1.0,
+      "sample_count": 3
+    }
+  },
+  "experiment_id": "frozen-smoke-demo",
+  "failure_count": 0,
+  "report_type": "failure_analysis",
+  "runs": []
+}

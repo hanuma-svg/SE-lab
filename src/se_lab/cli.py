@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from pathlib import Path
 
 from se_lab.agents import (
@@ -174,8 +175,52 @@ def _compare_command(left: str, right: str) -> int:
     return 0 if payload["comparable"] else 1
 
 
-def _benchmark_command(catalog: str) -> int:
+def _validate_benchmark(catalog: BenchmarkCatalog) -> dict[str, object]:
+    task_ids = [task.task_id for task in catalog.tasks]
+    duplicate_ids = sorted({task_id for task_id in task_ids if task_ids.count(task_id) > 1})
+    task_results: list[dict[str, object]] = []
+    for task in catalog.tasks:
+        repository = Path(task.repository_path).resolve()
+        errors: list[str] = []
+        if not (repository / ".git").exists():
+            errors.append("repository path is not a git checkout")
+        else:
+            commit_check = subprocess.run(
+                ["git", "-C", str(repository), "cat-file", "-e", f"{task.commit_sha}^{{commit}}"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if commit_check.returncode != 0:
+                errors.append(f"base commit is unavailable: {task.commit_sha}")
+        for relative_path in task.target_tests + task.retained_tests:
+            if not (repository / relative_path).exists():
+                errors.append(f"test path is missing: {relative_path}")
+        if not task.allowed_write_paths:
+            errors.append("allowed_write_paths is empty")
+        if not task.provenance or not task.deterministic_setup:
+            errors.append("provenance or deterministic_setup is missing")
+        task_results.append({"task_id": task.task_id, "valid": not errors, "errors": errors})
+    if duplicate_ids:
+        for task_result in task_results:
+            if task_result["task_id"] in duplicate_ids:
+                task_result["valid"] = False
+                task_result["errors"].append("duplicate task_id")
+    return {
+        "valid": not duplicate_ids and all(result["valid"] for result in task_results),
+        "task_count": len(catalog.tasks),
+        "duplicate_task_ids": duplicate_ids,
+        "tasks": task_results,
+        "validation_note": "Schema, provenance, repository commit, and declared test paths were checked; execution is performed by the smoke and experiment tests.",
+    }
+
+
+def _benchmark_command(catalog: str, action: str | None = None) -> int:
     loaded = BenchmarkCatalog.from_file(catalog)
+    if action == "validate":
+        payload = _validate_benchmark(loaded)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0 if payload["valid"] else 1
     payload = {
         "name": loaded.name,
         "version": loaded.version,
@@ -312,6 +357,7 @@ def main(argv: list[str] | None = None) -> int:
     compare_parser.set_defaults(handler=_compare_command)
 
     benchmark_parser = subparsers.add_parser("benchmark", help="Inspect a deterministic benchmark task catalog")
+    benchmark_parser.add_argument("action", nargs="?", choices=["validate"])
     benchmark_parser.add_argument("--catalog", required=True)
     benchmark_parser.set_defaults(handler=_benchmark_command)
 
@@ -365,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "compare":
             return args.handler(args.left, args.right)
         if args.command == "benchmark":
-            return args.handler(args.catalog)
+            return args.handler(args.catalog, args.action)
         if args.command == "baseline":
             return args.handler(
                 args.task,
