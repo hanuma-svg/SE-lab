@@ -4,9 +4,10 @@ import argparse
 import json
 from pathlib import Path
 
+from se_lab.agents import BaselineConfig, SingleAgentBaseline
 from se_lab.artifacts.store import ArtifactStore
 from se_lab.contracts import EventEnvelope, RunManifest
-from se_lab.evaluation import IndependentEvaluator
+from se_lab.evaluation import EvaluationTask, IndependentEvaluator
 from se_lab.events.store import EventStore
 from se_lab.replay.replay import replay_run
 from se_lab.reporting.report import build_report
@@ -85,6 +86,38 @@ def _evaluate_command(task: str, patch: str) -> int:
     return 0
 
 
+def _baseline_command(
+    task: str,
+    *,
+    run_id: str | None = None,
+    events_dir: str = ".se-lab/events",
+    artifacts_dir: str = ".se-lab/artifacts",
+    seed: int = 0,
+    max_model_calls: int = 1,
+    max_wall_clock: int = 300,
+    max_retries: int = 0,
+    provider_name: str = "mock",
+    provider_version: str = "mock-v1",
+    model_name: str = "mock-baseline",
+) -> int:
+    task_obj = EvaluationTask.from_file(task)
+    config = BaselineConfig(
+        run_id=run_id or "",
+        seed=seed,
+        max_model_calls=max_model_calls,
+        max_wall_clock=max_wall_clock,
+        max_retries=max_retries,
+        provider_name=provider_name,
+        provider_version=provider_version,
+        model_name=model_name,
+        events_dir=events_dir,
+        artifacts_dir=artifacts_dir,
+    )
+    result = SingleAgentBaseline().run(task_obj, config=config)
+    print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="se-lab")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -116,6 +149,20 @@ def main(argv: list[str] | None = None) -> int:
     evaluate_parser.add_argument("--patch", required=True)
     evaluate_parser.set_defaults(handler=_evaluate_command)
 
+    baseline_parser = subparsers.add_parser("baseline", help="Run the single-agent baseline offline against a deterministic task")
+    baseline_parser.add_argument("--task", required=True)
+    baseline_parser.add_argument("--run-id")
+    baseline_parser.add_argument("--events-dir", default=".se-lab/events")
+    baseline_parser.add_argument("--artifacts-dir", default=".se-lab/artifacts")
+    baseline_parser.add_argument("--seed", type=int, default=0)
+    baseline_parser.add_argument("--max-model-calls", type=int, default=1)
+    baseline_parser.add_argument("--max-wall-clock", type=int, default=300)
+    baseline_parser.add_argument("--max-retries", type=int, default=0)
+    baseline_parser.add_argument("--provider-name", default="mock")
+    baseline_parser.add_argument("--provider-version", default="mock-v1")
+    baseline_parser.add_argument("--model-name", default="mock-baseline")
+    baseline_parser.set_defaults(handler=_baseline_command)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "validate-manifest":
@@ -128,6 +175,20 @@ def main(argv: list[str] | None = None) -> int:
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
         if args.command == "evaluate":
             return args.handler(args.task, args.patch)
+        if args.command == "baseline":
+            return args.handler(
+                args.task,
+                run_id=args.run_id,
+                events_dir=args.events_dir,
+                artifacts_dir=args.artifacts_dir,
+                seed=args.seed,
+                max_model_calls=args.max_model_calls,
+                max_wall_clock=args.max_wall_clock,
+                max_retries=args.max_retries,
+                provider_name=args.provider_name,
+                provider_version=args.provider_version,
+                model_name=args.model_name,
+            )
     except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(json.dumps({"error": str(exc)}))
         return 1

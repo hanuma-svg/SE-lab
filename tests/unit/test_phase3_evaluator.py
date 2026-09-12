@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from se_lab.agents import SingleAgentBaseline
 from se_lab.cli import main as cli_main
 from se_lab.evaluation import EvaluationTask, IndependentEvaluator
 
@@ -209,6 +210,56 @@ def test_cli_evaluate_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     patch_path = _write_patch(repo, "src/app.py", "def compute():\n    return 2\n")
 
     exit_code = cli_main(["evaluate", "--task", str(task_path), "--patch", str(patch_path)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["status"] == "PASS"
+
+
+def test_single_agent_baseline_runs_offline_and_records_artifacts(tmp_path: Path):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+
+    patch_path = _write_patch(repo, "src/app.py", "def compute():\n    return 2\n")
+    task.mock_patch = patch_path.read_text(encoding="utf-8")
+
+    result = SingleAgentBaseline().run(task)
+
+    assert result.status == "PASS"
+    assert result.evaluation is not None
+    assert result.evaluation.status == "PASS"
+    assert result.artifacts["candidate_patch"]
+    assert result.artifacts["model_response"]
+    assert any(event.event_type == "BaselineRunCompleted" for event in result.events)
+
+
+def test_single_agent_baseline_rejects_policy_violations(tmp_path: Path):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+
+    patch_path = _write_patch(repo, "tests/test_target.py", "def test_target():\n    assert True\n")
+    task.mock_patch = patch_path.read_text(encoding="utf-8")
+
+    result = SingleAgentBaseline().run(task)
+
+    assert result.status == "FAIL"
+    assert "Patch rejected by policy" in result.summary
+    assert any(event.event_type == "ToolAuthorizationDenied" for event in result.events)
+
+
+def test_cli_baseline_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+
+    task_path = tmp_path / "task.json"
+    task_path.write_text(json.dumps(task.to_dict()), encoding="utf-8")
+
+    patch_path = _write_patch(repo, "src/app.py", "def compute():\n    return 2\n")
+    task.mock_patch = patch_path.read_text(encoding="utf-8")
+    task_path.write_text(json.dumps(task.to_dict()), encoding="utf-8")
+
+    exit_code = cli_main(["baseline", "--task", str(task_path)])
     captured = capsys.readouterr()
 
     assert exit_code == 0

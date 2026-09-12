@@ -38,6 +38,7 @@ class EvaluationTask:
     resource_limits: dict[str, Any] = field(default_factory=dict)
     allowed_write_paths: list[str] = field(default_factory=list)
     description: str = ""
+    mock_patch: str = ""
 
     @classmethod
     def from_file(cls, path: str | Path) -> EvaluationTask:
