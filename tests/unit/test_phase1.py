@@ -181,12 +181,40 @@ def test_cli_run_and_report_and_replay(tmp_path):
 
     events_dir = tmp_path / "events"
     artifacts_dir = tmp_path / "artifacts"
+    records_dir = tmp_path / "records"
+
     cli_main(["run", "--manifest", str(manifest_path), "--events-dir", str(events_dir), "--artifacts-dir", str(artifacts_dir)])
 
     report_code = cli_main(["report", "--run-id", "run-001", "--events-dir", str(events_dir), "--artifacts-dir", str(artifacts_dir)])
-    replay_code = cli_main(["replay", "--run-id", "run-001", "--events-dir", str(events_dir), "--artifacts-dir", str(artifacts_dir)])
+    record_code = cli_main(
+        [
+            "record",
+            "--run-id",
+            "run-001",
+            "--events-dir",
+            str(events_dir),
+            "--artifacts-dir",
+            str(artifacts_dir),
+            "--records-dir",
+            str(records_dir),
+        ]
+    )
+    replay_code = cli_main(
+        [
+            "replay",
+            "--run-id",
+            "run-001",
+            "--events-dir",
+            str(events_dir),
+            "--artifacts-dir",
+            str(artifacts_dir),
+            "--records-dir",
+            str(records_dir),
+        ]
+    )
 
     assert report_code == 0
+    assert record_code == 0
     assert replay_code == 0
 
 

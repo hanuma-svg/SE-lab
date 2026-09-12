@@ -14,7 +14,8 @@ from se_lab.artifacts.store import ArtifactStore
 from se_lab.contracts import EventEnvelope, RunManifest
 from se_lab.evaluation import EvaluationTask, IndependentEvaluator
 from se_lab.events.store import EventStore
-from se_lab.replay.replay import replay_run
+from se_lab.replay.replay import record_run, replay_run
+from se_lab.replay.store import RecordStore
 from se_lab.reporting.report import build_report
 
 
@@ -76,12 +77,43 @@ def _report_command(run_id: str, events_dir: str = ".se-lab/events", artifacts_d
     return 0
 
 
-def _replay_command(run_id: str, events_dir: str = ".se-lab/events", artifacts_dir: str = ".se-lab/artifacts") -> int:
+def _record_command(
+    run_id: str,
+    events_dir: str = ".se-lab/events",
+    artifacts_dir: str = ".se-lab/artifacts",
+    records_dir: str = ".se-lab/records",
+) -> int:
     event_store = EventStore(events_dir)
     artifact_store = ArtifactStore(artifacts_dir)
-    replay_payload = replay_run(run_id, event_store, artifact_store)
-    print(json.dumps(replay_payload, indent=2, sort_keys=True))
+    record_store = RecordStore(records_dir)
+    records = record_run(run_id, event_store, artifact_store, record_store=record_store)
+    print(
+        json.dumps(
+            {
+                "status": "PASS",
+                "run_id": run_id,
+                "record_count": len(records),
+                "records_dir": records_dir,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
+
+
+def _replay_command(
+    run_id: str,
+    events_dir: str = ".se-lab/events",
+    artifacts_dir: str = ".se-lab/artifacts",
+    records_dir: str = ".se-lab/records",
+) -> int:
+    event_store = EventStore(events_dir)
+    artifact_store = ArtifactStore(artifacts_dir)
+    record_store = RecordStore(records_dir)
+    replay_payload = replay_run(run_id, event_store, artifact_store, record_store=record_store)
+    print(json.dumps(replay_payload, indent=2, sort_keys=True))
+    return 0 if replay_payload.get("status") == "PASS" else 1
 
 
 def _evaluate_command(task: str, patch: str) -> int:
@@ -177,10 +209,18 @@ def main(argv: list[str] | None = None) -> int:
     report_parser.add_argument("--artifacts-dir", default=".se-lab/artifacts")
     report_parser.set_defaults(handler=_report_command)
 
+    record_parser = subparsers.add_parser("record", help="Record deterministic observations for a run")
+    record_parser.add_argument("--run-id", required=True)
+    record_parser.add_argument("--events-dir", default=".se-lab/events")
+    record_parser.add_argument("--artifacts-dir", default=".se-lab/artifacts")
+    record_parser.add_argument("--records-dir", default=".se-lab/records")
+    record_parser.set_defaults(handler=_record_command)
+
     replay_parser = subparsers.add_parser("replay", help="Replay a run and detect mismatches")
     replay_parser.add_argument("--run-id", required=True)
     replay_parser.add_argument("--events-dir", default=".se-lab/events")
     replay_parser.add_argument("--artifacts-dir", default=".se-lab/artifacts")
+    replay_parser.add_argument("--records-dir", default=".se-lab/records")
     replay_parser.set_defaults(handler=_replay_command)
 
     evaluate_parser = subparsers.add_parser("evaluate", help="Evaluate a candidate patch against a deterministic task")
@@ -225,8 +265,10 @@ def main(argv: list[str] | None = None) -> int:
             return args.handler(args.manifest, args.events_dir, args.artifacts_dir)
         if args.command == "report":
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
+        if args.command == "record":
+            return args.handler(args.run_id, args.events_dir, args.artifacts_dir, args.records_dir)
         if args.command == "replay":
-            return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
+            return args.handler(args.run_id, args.events_dir, args.artifacts_dir, args.records_dir)
         if args.command == "evaluate":
             return args.handler(args.task, args.patch)
         if args.command == "baseline":

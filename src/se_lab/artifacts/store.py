@@ -61,4 +61,11 @@ class ArtifactStore:
         artifact_path = self.root / "sha256" / sha256_hex[:2] / sha256_hex
         if not artifact_path.exists():
             raise FileNotFoundError(f"Artifact {sha256_hex} not found")
-        return artifact_path.read_bytes()
+
+        content = artifact_path.read_bytes()
+        actual_digest = sha256(content).hexdigest()
+        if actual_digest != sha256_hex:
+            raise ValueError(
+                f"Artifact integrity check failed for {sha256_hex}: stored content digest does not match requested digest."
+            )
+        return content
