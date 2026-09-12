@@ -61,8 +61,7 @@ def test_frozen_smoke_demo_runs_baseline_treatment_and_persists_evidence(tmp_pat
     assert all(Path(run["evidence_dir"]).exists() for run in result["runs"])
 
     second_output = tmp_path / "frozen-smoke-result-2.json"
-    assert cli_main(["experiment", "--config", str(config_path), "--output", str(second_output)]) == 0
-    capsys.readouterr()
-    second = json.loads(second_output.read_text(encoding="utf-8"))
-    assert result["config_hash"] == second["config_hash"]
-    assert [run["run_id"] for run in result["runs"]] == [run["run_id"] for run in second["runs"]]
+    assert cli_main(["experiment", "--config", str(config_path), "--output", str(second_output)]) == 1
+    error = json.loads(capsys.readouterr().out)
+    assert "historical evidence was preserved" in error["error"]
+    assert not second_output.exists()

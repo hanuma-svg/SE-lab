@@ -26,6 +26,7 @@ class ExperimentRunner:
                 "task": task.to_dict(),
             }
         )
+        self._ensure_fresh_evidence(config)
         runs: list[RunRecord] = []
         mismatches: list[str] = []
         for ablation in config.ablations:
@@ -57,6 +58,21 @@ class ExperimentRunner:
             aggregation=aggregation,
             report=build_experiment_report(config, task, runs, mismatches, aggregation),
         )
+
+    @staticmethod
+    def _ensure_fresh_evidence(config: ExperimentConfig) -> None:
+        for ablation in config.ablations:
+            if not ablation.enabled or ablation.name in {"no_reviewer", "no_handoffs"}:
+                continue
+            for repetition in range(1, config.repetitions + 1):
+                for variant in config.variants:
+                    run_id = f"{config.experiment_id}-{variant}-{ablation.name}-r{repetition}"
+                    evidence_root = Path(config.evidence_dir) / config.experiment_id / run_id
+                    if evidence_root.exists():
+                        raise FileExistsError(
+                            f"Evidence already exists for run {run_id}: {evidence_root}. "
+                            "Choose a new experiment_id or evidence_dir; historical evidence was preserved."
+                        )
 
     def _run_one(
         self,
