@@ -6,6 +6,7 @@ from pathlib import Path
 
 from se_lab.artifacts.store import ArtifactStore
 from se_lab.contracts import EventEnvelope, RunManifest
+from se_lab.evaluation import IndependentEvaluator
 from se_lab.events.store import EventStore
 from se_lab.replay.replay import replay_run
 from se_lab.reporting.report import build_report
@@ -77,6 +78,13 @@ def _replay_command(run_id: str, events_dir: str = ".se-lab/events", artifacts_d
     return 0
 
 
+def _evaluate_command(task: str, patch: str) -> int:
+    evaluator = IndependentEvaluator()
+    result = evaluator.evaluate(task, patch)
+    print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="se-lab")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -103,6 +111,11 @@ def main(argv: list[str] | None = None) -> int:
     replay_parser.add_argument("--artifacts-dir", default=".se-lab/artifacts")
     replay_parser.set_defaults(handler=_replay_command)
 
+    evaluate_parser = subparsers.add_parser("evaluate", help="Evaluate a candidate patch against a deterministic task")
+    evaluate_parser.add_argument("--task", required=True)
+    evaluate_parser.add_argument("--patch", required=True)
+    evaluate_parser.set_defaults(handler=_evaluate_command)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "validate-manifest":
@@ -113,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
         if args.command == "replay":
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
+        if args.command == "evaluate":
+            return args.handler(args.task, args.patch)
     except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(json.dumps({"error": str(exc)}))
         return 1
