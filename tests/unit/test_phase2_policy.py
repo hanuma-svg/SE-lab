@@ -307,6 +307,58 @@ def test_policy_decision_is_deterministic_for_identical_requests(tmp_path):
     assert first.request_id == second.request_id
 
 
+def test_policy_denies_host_filesystem_capability(tmp_path):
+    workspace = _workspace(tmp_path)
+    event_store = EventStore(tmp_path / "events")
+    gateway = PolicyGateway(event_store)
+
+    request = ToolRequest(
+        tool_name="host_filesystem",
+        arguments={},
+        workspace_snapshot_hash="abc",
+        schema_version="v1",
+    )
+
+    decision = gateway.authorize(request, workspace)
+    events = event_store.read(workspace.run_id)
+
+    assert decision.decision == "deny"
+    assert decision.capability == "HOST_FILESYSTEM"
+    assert any(event.event_type == "ToolAuthorizationDenied" for event in events)
+    assert any(event.event_type == "PolicyViolationDetected" for event in events)
+
+
+def test_policy_denies_protected_evaluator_file_write(tmp_path):
+    workspace = _workspace(tmp_path)
+    workspace.run_id = "run-protected-evaluator"
+    workspace.allowed_write_paths = [workspace.repository_path / "src"]
+    (workspace.repository_path / "src").mkdir(parents=True, exist_ok=True)
+
+    protected_dir = workspace.repository_path / "evaluation"
+    protected_dir.mkdir(parents=True, exist_ok=True)
+    protected_path = protected_dir / "protected_asset.txt"
+    protected_path.write_text("original content", encoding="utf-8")
+
+    event_store = EventStore(tmp_path / "events")
+    gateway = PolicyGateway(event_store)
+
+    request = ToolRequest(
+        tool_name="write_file",
+        arguments={"path": "evaluation/protected_asset.txt", "content": "overwritten content"},
+        workspace_snapshot_hash="abc",
+        schema_version="v1",
+    )
+
+    decision = gateway.authorize(request, workspace)
+    events = event_store.read(workspace.run_id)
+
+    assert decision.decision == "deny"
+    assert decision.capability == "WRITE_PATCH"
+    assert protected_path.read_text(encoding="utf-8") == "original content"
+    assert any(event.event_type == "ToolAuthorizationDenied" for event in events)
+    assert any(event.event_type == "PolicyViolationDetected" for event in events)
+
+
 def test_command_policy_rejects_chaining_and_redirects():
     policy = CommandPolicy()
 
