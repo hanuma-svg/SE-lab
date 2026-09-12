@@ -8,6 +8,7 @@ SE-lab is an evaluation platform for deterministic software-engineering tasks. T
 - Phase 4: a minimal bounded multi-agent workflow with Planner, Implementer, Tester, and Reviewer roles, using the provider abstraction and policy gateway while remaining offline and deterministic
 - Phase 5: deterministic record/replay with normalized request identity and mismatch detection
 - Phase 6: independent evaluation of quality, safety, coordination, evidence, efficiency, and failure classes
+- Phase 7: local experiment configuration, benchmark catalogues, matched runs, one meaningful ablation, aggregation, and comparison
 
 ## Phase 4 multi-agent workflow
 
@@ -56,6 +57,20 @@ se-lab phase6 --run-id RUN_ID --events-dir .se-lab/events --artifacts-dir .se-la
 ```
 
 Evidence validation is fail-closed: malformed events, missing causal parents, non-contiguous sequences, missing terminal evidence, and corrupted referenced artifacts are classified as `INSUFFICIENT_EVIDENCE` and cannot produce an unqualified `PASS`.
+
+## Phase 7 researcher workflow
+
+The local researcher workflow uses strict JSON contracts and keeps the existing offline event and artifact stores as the default. A configuration selects a task definition, baseline and/or multi-agent variants, repetitions, seed, matched budgets, and an explicit ablation. The supported meaningful ablation is `no_retries`; unsupported graph changes are reported as mismatches rather than silently simulated.
+
+Run an experiment, inspect a task catalog, or compare two recorded experiment results:
+
+```bash
+se-lab experiment --config experiment.json --output result.json
+se-lab benchmark --catalog benchmarks/smoke.json
+se-lab compare --left baseline-result.json --right treatment-result.json
+```
+
+Experiment output remains descriptive. It reports sample counts, pass rates, failure classes, efficiency metrics, budget validity, and mismatches without claiming that one workflow is superior or producing an arbitrary aggregate score.
 
 ### Scope boundaries
 

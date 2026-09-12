@@ -11,9 +11,17 @@ from se_lab.agents import (
     SingleAgentBaseline,
 )
 from se_lab.artifacts.store import ArtifactStore
+from se_lab.benchmarks import BenchmarkCatalog
 from se_lab.contracts import EventEnvelope, RunManifest
 from se_lab.evaluation import EvaluationTask, IndependentEvaluator, evaluate_run
 from se_lab.events.store import EventStore
+from se_lab.experiments import (
+    ExperimentConfig,
+    ExperimentResult,
+    ExperimentRunner,
+    compare_experiments,
+    failure_analysis,
+)
 from se_lab.replay.replay import record_run, replay_run
 from se_lab.replay.store import RecordStore
 from se_lab.reporting.report import build_report
@@ -63,7 +71,20 @@ def _run_command(manifest_path: str, events_dir: str, artifacts_dir: str) -> int
     return 0
 
 
-def _report_command(run_id: str, events_dir: str = ".se-lab/events", artifacts_dir: str = ".se-lab/artifacts") -> int:
+def _report_command(
+    run_id: str | None,
+    events_dir: str = ".se-lab/events",
+    artifacts_dir: str = ".se-lab/artifacts",
+    experiment_result: str | None = None,
+    report_kind: str = "experiment",
+) -> int:
+    if experiment_result:
+        result = ExperimentResult.model_validate_json(Path(experiment_result).read_text(encoding="utf-8"))
+        payload = result.report if report_kind == "experiment" else failure_analysis(result)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if not run_id:
+        raise ValueError("Either --run-id or --experiment-result is required")
     event_store = EventStore(events_dir)
     artifact_store = ArtifactStore(artifacts_dir)
     report_path = Path(events_dir).parent / f"{run_id}.report.json"
@@ -131,6 +152,39 @@ def _phase6_command(
     audit = evaluate_run(run_id, EventStore(events_dir), ArtifactStore(artifacts_dir))
     print(json.dumps(audit.model_dump(mode="json"), indent=2, sort_keys=True))
     return 0 if audit.verdict == "PASS" else 1
+
+
+def _experiment_command(config_path: str, output: str | None = None) -> int:
+    config = ExperimentConfig.model_validate_json(Path(config_path).read_text(encoding="utf-8"))
+    result = ExperimentRunner().run(config)
+    payload = result.model_dump(mode="json")
+    if output:
+        target = Path(output)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if not result.mismatches else 1
+
+
+def _compare_command(left: str, right: str) -> int:
+    left_result = ExperimentResult.model_validate_json(Path(left).read_text(encoding="utf-8"))
+    right_result = ExperimentResult.model_validate_json(Path(right).read_text(encoding="utf-8"))
+    payload = compare_experiments(left_result, right_result)
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if payload["comparable"] else 1
+
+
+def _benchmark_command(catalog: str) -> int:
+    loaded = BenchmarkCatalog.from_file(catalog)
+    payload = {
+        "name": loaded.name,
+        "version": loaded.version,
+        "task_count": len(loaded.tasks),
+        "adversarial_count": sum(task.adversarial for task in loaded.tasks),
+        "tasks": [task.model_dump(mode="json") for task in loaded.tasks],
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0
 
 
 def _baseline_command(
@@ -214,9 +268,12 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.set_defaults(handler=_run_command)
 
     report_parser = subparsers.add_parser("report", help="Read or rebuild a run report")
-    report_parser.add_argument("--run-id", required=True)
+    report_selector = report_parser.add_mutually_exclusive_group(required=True)
+    report_selector.add_argument("--run-id")
+    report_selector.add_argument("--experiment-result")
     report_parser.add_argument("--events-dir", default=".se-lab/events")
     report_parser.add_argument("--artifacts-dir", default=".se-lab/artifacts")
+    report_parser.add_argument("--kind", choices=["experiment", "failure"], default="experiment")
     report_parser.set_defaults(handler=_report_command)
 
     record_parser = subparsers.add_parser("record", help="Record deterministic observations for a run")
@@ -243,6 +300,20 @@ def main(argv: list[str] | None = None) -> int:
     phase6_parser.add_argument("--events-dir", default=".se-lab/events")
     phase6_parser.add_argument("--artifacts-dir", default=".se-lab/artifacts")
     phase6_parser.set_defaults(handler=_phase6_command)
+
+    experiment_parser = subparsers.add_parser("experiment", help="Run a deterministic matched baseline/treatment experiment")
+    experiment_parser.add_argument("--config", required=True)
+    experiment_parser.add_argument("--output")
+    experiment_parser.set_defaults(handler=_experiment_command)
+
+    compare_parser = subparsers.add_parser("compare", help="Compare two recorded experiment results")
+    compare_parser.add_argument("--left", required=True)
+    compare_parser.add_argument("--right", required=True)
+    compare_parser.set_defaults(handler=_compare_command)
+
+    benchmark_parser = subparsers.add_parser("benchmark", help="Inspect a deterministic benchmark task catalog")
+    benchmark_parser.add_argument("--catalog", required=True)
+    benchmark_parser.set_defaults(handler=_benchmark_command)
 
     baseline_parser = subparsers.add_parser("baseline", help="Run the single-agent baseline offline against a deterministic task")
     baseline_parser.add_argument("--task", required=True)
@@ -280,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "run":
             return args.handler(args.manifest, args.events_dir, args.artifacts_dir)
         if args.command == "report":
-            return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
+            return args.handler(args.run_id, args.events_dir, args.artifacts_dir, args.experiment_result, args.kind)
         if args.command == "record":
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir, args.records_dir)
         if args.command == "replay":
@@ -289,6 +360,12 @@ def main(argv: list[str] | None = None) -> int:
             return args.handler(args.task, args.patch)
         if args.command == "phase6":
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
+        if args.command == "experiment":
+            return args.handler(args.config, args.output)
+        if args.command == "compare":
+            return args.handler(args.left, args.right)
+        if args.command == "benchmark":
+            return args.handler(args.catalog)
         if args.command == "baseline":
             return args.handler(
                 args.task,
