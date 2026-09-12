@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -87,6 +88,7 @@ class IndependentEvaluator:
             )
 
             self._materialize_repository(task_obj, repo_root)
+            oracle_snapshot = self._snapshot_oracle(repo_root, task_obj)
 
             workspace = Workspace(
                 run_id=run_id,
@@ -170,6 +172,25 @@ class IndependentEvaluator:
                     )
 
             self._apply_patch(repo_root, patch_path)
+
+            changed_oracle_paths = self._verify_oracle_integrity(
+                repo_root,
+                task_obj,
+                oracle_snapshot,
+            )
+            if changed_oracle_paths:
+                return self._finalize_failure(
+                    event_store,
+                    artifact_store,
+                    run_id,
+                    task_obj,
+                    "INFRASTRUCTURE_FAILURE",
+                    "Evaluator oracle integrity violation: "
+                    + ", ".join(changed_oracle_paths),
+                    target_tests=task_obj.target_tests,
+                    retained_tests=task_obj.retained_tests,
+                )
+
             diff_bytes = self._collect_diff(repo_root)
             self._store_artifact(event_store, artifact_store, run_id, "patch_diff", diff_bytes, "diff")
 
@@ -379,6 +400,53 @@ class IndependentEvaluator:
             arguments={"path": request_path},
             workspace_snapshot_hash="evaluator",
             schema_version="phase-3",
+        )
+
+    def _oracle_paths(self, repo_root: Path, task: EvaluationTask) -> list[Path]:
+        paths: set[Path] = set()
+
+        tests_root = repo_root / "tests"
+        if tests_root.exists():
+            paths.update(
+                path.resolve()
+                for path in tests_root.rglob("*")
+                if path.is_file()
+            )
+
+        pyproject = repo_root / "pyproject.toml"
+        if pyproject.exists():
+            paths.add(pyproject.resolve())
+
+        return sorted(paths)
+
+
+    def _snapshot_oracle(self, repo_root: Path, task: EvaluationTask) -> dict[str, str]:
+        snapshot: dict[str, str] = {}
+
+        for path in self._oracle_paths(repo_root, task):
+            if not path.is_file():
+                raise ValueError(
+                    "Oracle integrity path is missing or not a file: "
+                    f"{path.relative_to(repo_root).as_posix()}"
+                )
+
+            snapshot[path.relative_to(repo_root).as_posix()] = (
+                hashlib.sha256(path.read_bytes()).hexdigest()
+            )
+
+        return snapshot
+
+    def _verify_oracle_integrity(
+        self,
+        repo_root: Path,
+        task: EvaluationTask,
+        before: dict[str, str],
+    ) -> list[str]:
+        after = self._snapshot_oracle(repo_root, task)
+        return sorted(
+            path
+            for path in set(before) | set(after)
+            if before.get(path) != after.get(path)
         )
 
     def _extract_patch_paths(self, patch_text: str) -> list[str]:
