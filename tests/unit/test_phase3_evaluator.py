@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from se_lab.agents import SingleAgentBaseline
+from se_lab.agents import MultiAgentWorkflow, SingleAgentBaseline
 from se_lab.cli import main as cli_main
 from se_lab.evaluation import EvaluationTask, IndependentEvaluator
 
@@ -260,6 +260,58 @@ def test_cli_baseline_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     task_path.write_text(json.dumps(task.to_dict()), encoding="utf-8")
 
     exit_code = cli_main(["baseline", "--task", str(task_path)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["status"] == "PASS"
+
+
+def test_multi_agent_workflow_runs_offline_and_records_artifacts(tmp_path: Path):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+
+    patch_path = _write_patch(repo, "src/app.py", "def compute():\n    return 2\n")
+    task.mock_patch = patch_path.read_text(encoding="utf-8")
+
+    result = MultiAgentWorkflow().run(task)
+
+    assert result.status == "PASS"
+    assert result.evaluation is not None
+    assert result.evaluation.status == "PASS"
+    assert result.artifacts["candidate_patch"]
+    assert any(event.event_type == "ReviewerDecisionRecorded" for event in result.events)
+    assert result.budgets["model_calls_used"] == 2
+    assert result.budgets["tool_calls_used"] >= 1
+
+
+def test_multi_agent_workflow_handles_relative_allowed_write_paths(tmp_path: Path):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+    task.allowed_write_paths = ["src"]
+
+    patch_path = _write_patch(repo, "src/app.py", "def compute():\n    return 2\n")
+    task.mock_patch = patch_path.read_text(encoding="utf-8")
+
+    result = MultiAgentWorkflow().run(task)
+
+    assert result.status == "PASS"
+    assert result.evaluation is not None
+    assert result.evaluation.status == "PASS"
+
+
+def test_cli_multi_agent_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+
+    task_path = tmp_path / "task.json"
+    task_path.write_text(json.dumps(task.to_dict()), encoding="utf-8")
+
+    patch_path = _write_patch(repo, "src/app.py", "def compute():\n    return 2\n")
+    task.mock_patch = patch_path.read_text(encoding="utf-8")
+    task_path.write_text(json.dumps(task.to_dict()), encoding="utf-8")
+
+    exit_code = cli_main(["multi-agent", "--task", str(task_path)])
     captured = capsys.readouterr()
 
     assert exit_code == 0

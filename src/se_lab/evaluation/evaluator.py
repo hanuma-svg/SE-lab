@@ -347,17 +347,22 @@ class IndependentEvaluator:
         allowed_paths: list[Path] = []
 
         for allowed in task.allowed_write_paths or [repo_root]:
-            allowed_path = Path(allowed).resolve()
-            if allowed_path == source_root:
+            candidate = Path(allowed)
+            if not candidate.is_absolute():
+                candidate = (source_root / candidate).resolve(strict=False)
+            else:
+                candidate = candidate.resolve(strict=False)
+
+            if candidate == source_root:
                 allowed_paths.append(repo_root)
                 continue
 
-            if allowed_path.is_relative_to(source_root):
-                relative = allowed_path.relative_to(source_root)
+            if candidate.is_relative_to(source_root):
+                relative = candidate.relative_to(source_root)
                 allowed_paths.append((repo_root / relative).resolve())
                 continue
 
-            allowed_paths.append(allowed_path)
+            allowed_paths.append(candidate)
 
         return allowed_paths
 

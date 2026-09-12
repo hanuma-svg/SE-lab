@@ -5,24 +5,24 @@ SE-lab is an evaluation platform for deterministic software-engineering tasks. T
 - Phase 1: core contracts, artifact/event storage, replay, reporting, and CLI scaffolding
 - Phase 2: secure workspace and policy gateway enforcement
 - Phase 3: independent evaluator for deterministic, external validation
-- Phase 4 (current): a minimal single-agent baseline that uses a provider abstraction and the policy gateway, but intentionally stays offline and non-agentic
+- Phase 4 (current): a minimal bounded multi-agent workflow with Planner, Implementer, Tester, and Reviewer roles, using the provider abstraction and policy gateway while remaining offline and deterministic
 
-## Single-agent baseline
+## Phase 4 multi-agent workflow
 
-The baseline is intentionally small and isolated:
+The current bounded workflow is intentionally small and isolated:
 
-- `SingleAgentBaseline` materializes a task repository into a controlled workspace
+- `MultiAgentWorkflow` orchestrates a Planner → Implementer → Tester → Reviewer flow
 - `ModelProvider` provides an abstraction for model access
 - `MockModelProvider` provides deterministic offline responses using `task.mock_patch`
-- the baseline requests authorization via the policy gateway before emitting any write operations
-- each run records events and artifacts, then invokes the independent evaluator for final scoring
+- each role is allowed only through the policy gateway and the shared workspace abstraction
+- the workflow records events and artifacts for every role transition, then invokes the independent evaluator for final scoring
 
 ### CLI usage
 
-Run the baseline against a task definition:
+Run the multi-agent workflow against a task definition:
 
 ```bash
-se-lab baseline --task path/to/task.json
+se-lab multi-agent --task path/to/task.json
 ```
 
 Optional flags:
@@ -32,6 +32,7 @@ Optional flags:
 - `--artifacts-dir`
 - `--seed`
 - `--max-model-calls`
+- `--max-tool-calls`
 - `--max-wall-clock`
 - `--max-retries`
 - `--provider-name`
@@ -40,17 +41,17 @@ Optional flags:
 
 ### Offline test pattern
 
-The baseline is designed for deterministic offline use. The built-in mock provider returns the task's `mock_patch`, so end-to-end tests can execute without external model APIs.
+The workflow is designed for deterministic offline use. The built-in mock provider returns the task's `mock_patch`, so end-to-end tests can execute without external model APIs.
 
 ### Scope boundaries
 
 This repository intentionally does not include:
 
-- LangGraph or multi-agent orchestration
-- planner/implementer/tester/reviewer agents
+- LangGraph
 - PostgreSQL or MinIO
 - web dashboard features
 - external model API integrations
 - SWE-bench evaluation harnesses
+- additional agent roles beyond the current bounded four-role workflow
 
-The goal is to provide a secure, credible foundation for future agentic work while keeping the current baseline deliberately minimal and auditable.
+The goal is to provide a secure, credible foundation for future agentic work while keeping the current workflow deliberately minimal and auditable.

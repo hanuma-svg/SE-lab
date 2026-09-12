@@ -4,7 +4,12 @@ import argparse
 import json
 from pathlib import Path
 
-from se_lab.agents import BaselineConfig, SingleAgentBaseline
+from se_lab.agents import (
+    BaselineConfig,
+    MultiAgentConfig,
+    MultiAgentWorkflow,
+    SingleAgentBaseline,
+)
 from se_lab.artifacts.store import ArtifactStore
 from se_lab.contracts import EventEnvelope, RunManifest
 from se_lab.evaluation import EvaluationTask, IndependentEvaluator
@@ -118,6 +123,40 @@ def _baseline_command(
     return 0
 
 
+def _multi_agent_command(
+    task: str,
+    *,
+    run_id: str | None = None,
+    events_dir: str = ".se-lab/events",
+    artifacts_dir: str = ".se-lab/artifacts",
+    seed: int = 0,
+    max_model_calls: int = 4,
+    max_tool_calls: int = 10,
+    max_wall_clock: int = 300,
+    max_retries: int = 1,
+    provider_name: str = "mock",
+    provider_version: str = "mock-v1",
+    model_name: str = "mock-baseline",
+) -> int:
+    task_obj = EvaluationTask.from_file(task)
+    config = MultiAgentConfig(
+        run_id=run_id or "",
+        seed=seed,
+        max_model_calls=max_model_calls,
+        max_tool_calls=max_tool_calls,
+        max_wall_clock=max_wall_clock,
+        max_retries=max_retries,
+        provider_name=provider_name,
+        provider_version=provider_version,
+        model_name=model_name,
+        events_dir=events_dir,
+        artifacts_dir=artifacts_dir,
+    )
+    result = MultiAgentWorkflow().run(task_obj, config=config)
+    print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="se-lab")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -163,6 +202,21 @@ def main(argv: list[str] | None = None) -> int:
     baseline_parser.add_argument("--model-name", default="mock-baseline")
     baseline_parser.set_defaults(handler=_baseline_command)
 
+    multi_agent_parser = subparsers.add_parser("multi-agent", help="Run the bounded four-role multi-agent workflow offline")
+    multi_agent_parser.add_argument("--task", required=True)
+    multi_agent_parser.add_argument("--run-id")
+    multi_agent_parser.add_argument("--events-dir", default=".se-lab/events")
+    multi_agent_parser.add_argument("--artifacts-dir", default=".se-lab/artifacts")
+    multi_agent_parser.add_argument("--seed", type=int, default=0)
+    multi_agent_parser.add_argument("--max-model-calls", type=int, default=4)
+    multi_agent_parser.add_argument("--max-tool-calls", type=int, default=10)
+    multi_agent_parser.add_argument("--max-wall-clock", type=int, default=300)
+    multi_agent_parser.add_argument("--max-retries", type=int, default=1)
+    multi_agent_parser.add_argument("--provider-name", default="mock")
+    multi_agent_parser.add_argument("--provider-version", default="mock-v1")
+    multi_agent_parser.add_argument("--model-name", default="mock-baseline")
+    multi_agent_parser.set_defaults(handler=_multi_agent_command)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "validate-manifest":
@@ -183,6 +237,21 @@ def main(argv: list[str] | None = None) -> int:
                 artifacts_dir=args.artifacts_dir,
                 seed=args.seed,
                 max_model_calls=args.max_model_calls,
+                max_wall_clock=args.max_wall_clock,
+                max_retries=args.max_retries,
+                provider_name=args.provider_name,
+                provider_version=args.provider_version,
+                model_name=args.model_name,
+            )
+        if args.command == "multi-agent":
+            return args.handler(
+                args.task,
+                run_id=args.run_id,
+                events_dir=args.events_dir,
+                artifacts_dir=args.artifacts_dir,
+                seed=args.seed,
+                max_model_calls=args.max_model_calls,
+                max_tool_calls=args.max_tool_calls,
                 max_wall_clock=args.max_wall_clock,
                 max_retries=args.max_retries,
                 provider_name=args.provider_name,
