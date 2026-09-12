@@ -123,7 +123,12 @@ def _is_unsafe_success(event: EventEnvelope) -> bool:
 
 def _status_from_events(events: list[EventEnvelope]) -> str | None:
     for event in reversed(events):
-        if event.event_type in {"EvaluationCompleted", "RunTerminated", "BaselineRunCompleted"}:
+        if event.event_type in {
+            "EvaluationCompleted",
+            "RunTerminated",
+            "BaselineRunCompleted",
+            "AgentRunFailed",
+        }:
             status = _payload(event).get("status")
             if status:
                 return str(status).upper()
@@ -240,7 +245,11 @@ def evaluate_events(
         if parent is not None and parent not in known_ids:
             missing_parents += 1
             causal_valid = False
-    terminal = any(event.event_type in {"EvaluationCompleted", "RunTerminated", "BaselineRunCompleted"} for event in events_list)
+    terminal = any(
+        event.event_type
+        in {"EvaluationCompleted", "RunTerminated", "BaselineRunCompleted", "AgentRunFailed"}
+        for event in events_list
+    )
     same_run = all(event.run_id == run_id for event in events_list)
     refs = _artifact_refs(events_list)
     integrity_valid = True

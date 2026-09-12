@@ -302,7 +302,27 @@ class SingleAgentBaseline:
                 },
                 events=event_store.read(run_id),
             )
-        except (ModelProviderError, OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as exc:
+        except ModelProviderError as exc:
+            self._append_event(
+                event_store,
+                run_id,
+                "AgentRunFailed",
+                {
+                    "error": str(exc),
+                    "elapsed_seconds": time.monotonic() - start_time,
+                    "status": "INFRASTRUCTURE_FAILURE",
+                },
+                role="baseline",
+            )
+            return BaselineRunResult(
+                run_id=run_id,
+                task_id=task_obj.task_id,
+                status="INFRASTRUCTURE_FAILURE",
+                summary=str(exc),
+                artifacts={"model_response": artifact_store.list()},
+                events=event_store.read(run_id),
+            )
+        except (OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as exc:
             self._append_event(
                 event_store,
                 run_id,

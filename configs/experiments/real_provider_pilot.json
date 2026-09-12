@@ -7,10 +7,10 @@
   "budget": {
     "max_model_calls": 4,
     "max_tool_calls": 10,
-    "max_tokens": 256,
+    "max_tokens": 512,
     "max_input_tokens": 1600,
-    "max_output_tokens": 256,
-    "max_total_tokens": 1856,
+    "max_output_tokens": 512,
+    "max_total_tokens": 2112,
     "max_wall_clock": 60,
     "max_retries": 0
   },

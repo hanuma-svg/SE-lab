@@ -466,7 +466,36 @@ class MultiAgentWorkflow:
                 },
                 events=event_store.read(run_id),
             )
-        except (ModelProviderError, OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as exc:
+        except ModelProviderError as exc:
+            self._append_event(
+                event_store,
+                run_id,
+                "RunTerminated",
+                {
+                    "status": "INFRASTRUCTURE_FAILURE",
+                    "summary": str(exc),
+                    "elapsed_seconds": time.monotonic() - start_time,
+                },
+                role="planner",
+            )
+            return MultiAgentRunResult(
+                run_id=run_id,
+                task_id=task_obj.task_id,
+                status="INFRASTRUCTURE_FAILURE",
+                summary=str(exc),
+                budgets={
+                    "model_calls_used": model_calls_used,
+                    "tool_calls_used": tool_calls_used,
+                    "retries_used": retries_used,
+                    "elapsed_seconds": round(time.monotonic() - start_time, 3),
+                    "max_model_calls": workflow_config.max_model_calls,
+                    "max_tool_calls": workflow_config.max_tool_calls,
+                    "max_retries": workflow_config.max_retries,
+                },
+                artifacts={"model_response": artifact_store.list()},
+                events=event_store.read(run_id),
+            )
+        except (OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as exc:
             self._append_event(
                 event_store,
                 run_id,
