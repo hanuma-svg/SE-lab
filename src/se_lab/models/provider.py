@@ -139,12 +139,25 @@ class OpenAICompatibleProvider:
             raise ModelProviderError(f"Real provider request failed: {type(exc).__name__}") from exc
 
         try:
-            choice = data["choices"][0]
-            content = choice["message"]["content"]
+            choices = data["choices"]
+            if not isinstance(choices, list) or not choices:
+                raise ValueError("choices must be a non-empty list")
+            choice = choices[0]
+            if not isinstance(choice, dict):
+                raise TypeError("choices[0] must be an object")
+            message = choice["message"]
+            if not isinstance(message, dict):
+                raise TypeError("choices[0].message must be an object")
+            content = message["content"]
             if not isinstance(content, str) or not content:
-                raise ValueError("empty model content")
+                raise ValueError("choices[0].message.content must be a non-empty string")
         except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise ModelProviderError("Real provider returned a malformed response.") from exc
+            choice_keys = sorted(choice.keys()) if "choice" in locals() and isinstance(choice, dict) else []
+            raise ModelProviderError(
+                "Real provider returned a malformed response: "
+                f"{exc}; top_level_keys={sorted(data.keys()) if isinstance(data, dict) else []}; "
+                f"choice_keys={choice_keys}"
+            ) from exc
         usage = data.get("usage")
         if not isinstance(usage, dict):
             raise ModelProviderError("Real provider returned missing usage accounting.")

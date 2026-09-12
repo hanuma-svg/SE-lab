@@ -99,8 +99,15 @@ def test_real_provider_malformed_response_is_rejected(monkeypatch):
 
     monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: Response())
     provider = OpenAICompatibleProvider(api_key="test-only", base_url="https://example.invalid")
-    with pytest.raises(ModelProviderError, match="malformed"):
+    with pytest.raises(ModelProviderError, match="malformed") as exc_info:
         provider.complete(_request())
+
+    message = str(exc_info.value)
+    assert "choices must be a non-empty list" in message
+    assert "top_level_keys=['choices']" in message
+    assert "choice_keys=[]" in message
+    assert "test-only" not in message
+    assert "return a patch" not in message
 
 
 def test_real_provider_success_normalizes_usage_without_logging_credentials(monkeypatch):
