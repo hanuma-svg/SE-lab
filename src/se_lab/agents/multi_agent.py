@@ -929,6 +929,12 @@ class MultiAgentWorkflow:
             f"Allowed write paths: {task.allowed_write_paths}\n"
             f"Protected paths: {task.protected_paths}\n"
             f"Context: {metadata.get('planner_summary', '')}\n"
+            f"Plan steps: {metadata.get('plan_steps', [])}\n"
+            f"Affected paths: {metadata.get('affected_paths', [])}\n"
+            f"Expected tests: {metadata.get('expected_tests', task.target_tests)}\n"
+            f"Retained tests: {metadata.get('retained_tests', task.retained_tests)}\n"
+            f"Artifact references: {metadata.get('artifact_references', [])}\n"
+            f"Revision instructions: {metadata.get('revision_instructions', [])}\n"
             f"{output}"
         )
 
