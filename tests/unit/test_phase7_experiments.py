@@ -28,7 +28,7 @@ def _fixture_config(tmp_path: Path) -> Path:
                 "task_path": str(task_path),
                 "repetitions": 1,
                 "seed": 11,
-                "budget": {"max_model_calls": 4, "max_tool_calls": 10, "max_wall_clock": 30, "max_retries": 1},
+                "budget": {"max_model_calls": 4, "max_tool_calls": 30, "max_wall_clock": 30, "max_retries": 1},
             }
         ),
         encoding="utf-8",

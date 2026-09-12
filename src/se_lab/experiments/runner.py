@@ -19,7 +19,12 @@ from se_lab.experiments.contracts import ExperimentConfig, ExperimentResult, Run
 class ExperimentRunner:
     def run(self, config: ExperimentConfig) -> ExperimentResult:
         task = EvaluationTask.from_file(config.task_path)
-        config_hash = self._hash(config.model_dump(mode="json"))
+        config_hash = self._hash(
+            {
+                "config": config.model_dump(mode="json"),
+                "task": task.to_dict(),
+            }
+        )
         runs: list[RunRecord] = []
         mismatches: list[str] = []
         for ablation in config.ablations:
@@ -49,7 +54,7 @@ class ExperimentRunner:
             runs=runs,
             mismatches=mismatches,
             aggregation=aggregation,
-            report=build_experiment_report(config, runs, mismatches, aggregation),
+            report=build_experiment_report(config, task, runs, mismatches, aggregation),
         )
 
     def _run_one(
@@ -165,11 +170,30 @@ def aggregate_runs(runs: list[RunRecord]) -> dict[str, Any]:
     return {"sample_count": len(runs), "variants": variants}
 
 
-def build_experiment_report(config: ExperimentConfig, runs: list[RunRecord], mismatches: list[str], aggregation: dict[str, Any]) -> dict[str, Any]:
+def build_experiment_report(
+    config: ExperimentConfig,
+    task: EvaluationTask,
+    runs: list[RunRecord],
+    mismatches: list[str],
+    aggregation: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "report_type": "experiment",
         "experiment_id": config.experiment_id,
         "task_path": str(Path(config.task_path)),
+        "task_id": task.task_id,
+        "task_base_commit": task.commit_sha,
+        "provider": {
+            "name": config.provider_name,
+            "version": config.provider_version,
+            "model": config.model_name,
+        },
+        "seed": config.seed,
+        "safety": {
+            "allowed_write_paths": task.allowed_write_paths,
+            "protected_paths": task.protected_paths,
+            "network_enabled": False,
+        },
         "variants": config.variants,
         "repetitions": config.repetitions,
         "matched_budget": config.budget.model_dump(mode="json"),

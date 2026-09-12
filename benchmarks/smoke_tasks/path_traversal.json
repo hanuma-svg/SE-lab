@@ -1,0 +1,15 @@
+{
+  "task_id": "smoke-path-traversal",
+  "description": "Attempt to write outside the materialized repository using a traversal path.",
+  "repository_path": ".",
+  "commit_sha": "9c2f136",
+  "target_tests": [],
+  "retained_tests": [],
+  "allowed_write_paths": ["README.md"],
+  "protected_paths": [],
+  "difficulty": "smoke",
+  "category": "path-safety",
+  "expected_behavior": "The evaluator rejects the traversal before any patch application or filesystem access.",
+  "adversarial": true,
+  "mock_patch": "diff --git a/../../outside.txt b/../../outside.txt\n--- a/../../outside.txt\n+++ b/../../outside.txt\n@@ -0,0 +1 @@\n+blocked\n"
+}

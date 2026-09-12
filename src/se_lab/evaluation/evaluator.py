@@ -39,6 +39,10 @@ class EvaluationTask:
     allowed_write_paths: list[str] = field(default_factory=list)
     description: str = ""
     mock_patch: str = ""
+    difficulty: str = "smoke"
+    category: str = "curated"
+    expected_behavior: str = ""
+    adversarial: bool = False
 
     @classmethod
     def from_file(cls, path: str | Path) -> EvaluationTask:

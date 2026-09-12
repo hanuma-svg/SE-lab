@@ -1,0 +1,18 @@
+{
+  "experiment_id": "frozen-smoke-demo",
+  "task_path": "benchmarks/smoke_tasks/success_readme.json",
+  "variants": ["baseline", "multi_agent"],
+  "repetitions": 1,
+  "seed": 7,
+  "budget": {
+    "max_model_calls": 4,
+    "max_tool_calls": 30,
+    "max_wall_clock": 30,
+    "max_retries": 1
+  },
+  "ablations": [{"name": "full", "enabled": true}],
+  "provider_name": "mock",
+  "provider_version": "mock-v1",
+  "model_name": "mock-baseline",
+  "evidence_dir": ".se-lab/frozen-smoke-demo"
+}
