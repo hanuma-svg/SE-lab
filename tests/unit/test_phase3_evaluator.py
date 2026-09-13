@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from se_lab.agents import MultiAgentWorkflow, SingleAgentBaseline
+from se_lab.agents.multi_agent import PlannerOutput
 from se_lab.cli import main as cli_main
 from se_lab.evaluation import EvaluationTask, IndependentEvaluator
 
@@ -56,6 +57,47 @@ def _write_fixture_repo(tmp_path: Path) -> tuple[Path, str]:
 
     commit_sha = _run(repo, "git", "rev-parse", "HEAD").stdout.strip()
     return repo, commit_sha
+
+
+def test_implementer_prompt_contains_complete_planner_context():
+    task = EvaluationTask(
+        task_id="prompt-task",
+        repository_path="/tmp/repository",
+        commit_sha="abc123",
+        description="Update the README safely.",
+        target_tests=["tests/test_target.py"],
+        retained_tests=["tests/test_retained.py"],
+        allowed_write_paths=["README.md"],
+        protected_paths=["src/se_lab/evaluation"],
+    )
+    planner = PlannerOutput(
+        run_id="prompt-run",
+        task_id=task.task_id,
+        summary="Append the requested documentation.",
+        plan_steps=["inspect README", "append the documented section"],
+        affected_paths=["README.md"],
+        expected_tests=["tests/test_target.py"],
+        retained_tests=["tests/test_retained.py"],
+        artifact_references=["sha256:planner-artifact"],
+    )
+
+    prompt = MultiAgentWorkflow()._role_prompt(
+        task,
+        "implementer",
+        {
+            "planner_output": planner.model_dump(mode="json"),
+            "revision_instructions": ["Preserve protected paths."],
+        },
+    )
+
+    assert "Append the requested documentation." in prompt
+    assert '"inspect README"' in prompt
+    assert '"README.md"' in prompt
+    assert '"tests/test_target.py"' in prompt
+    assert '"tests/test_retained.py"' in prompt
+    assert "sha256:planner-artifact" in prompt
+    assert "Preserve protected paths." in prompt
+    assert "Return a valid unified git patch only." in prompt
 
 
 def _task_for(repo: Path, commit_sha: str, *, target_tests: list[str] | None = None, retained_tests: list[str] | None = None, max_wall_clock: int = 30) -> EvaluationTask:

@@ -631,8 +631,7 @@ class MultiAgentWorkflow:
 
         implementer_metadata: dict[str, Any] = {
             "mock_patch": task.mock_patch,
-            "planner_summary": planner_output.summary,
-            "plan_steps": planner_output.plan_steps,
+            "planner_output": planner_output.model_dump(mode="json"),
             "revision_instructions": revision_instructions,
         }
         implementer_response = self._request_model(
@@ -919,6 +918,14 @@ class MultiAgentWorkflow:
             "tester": "Return a JSON test-result summary only.",
             "reviewer": "Return a JSON review decision only.",
         }.get(role, "Return a concise structured response only.")
+        planner_context = metadata.get("planner_output")
+        if planner_context is None:
+            planner_context = {
+                "summary": metadata.get("planner_summary", ""),
+                "plan_steps": metadata.get("plan_steps", []),
+            }
+        planner_context_text = json.dumps(planner_context, sort_keys=True)
+        revision_text = json.dumps(metadata.get("revision_instructions", []), sort_keys=True)
         return (
             f"You are the SE-Lab {role} agent.\n"
             f"Task: {task.description}\n"
@@ -928,7 +935,8 @@ class MultiAgentWorkflow:
             f"Retained tests: {task.retained_tests}\n"
             f"Allowed write paths: {task.allowed_write_paths}\n"
             f"Protected paths: {task.protected_paths}\n"
-            f"Context: {metadata.get('planner_summary', '')}\n"
+            f"Planner implementation plan (JSON): {planner_context_text}\n"
+            f"Revision instructions (JSON): {revision_text}\n"
             f"{output}"
         )
 
