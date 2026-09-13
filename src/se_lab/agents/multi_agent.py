@@ -539,6 +539,39 @@ class MultiAgentWorkflow:
             raise FileNotFoundError(f"Task definition not found: {task_path}")
         return EvaluationTask.from_file(task_path)
 
+    @staticmethod
+    def _planner_response_format() -> dict[str, Any]:
+        schema = PlannerOutput.model_json_schema()
+        properties = schema.get("properties", {})
+        output_fields = {
+            "summary",
+            "plan_steps",
+            "affected_paths",
+            "expected_tests",
+            "retained_tests",
+            "artifact_references",
+        }
+        schema["properties"] = {
+            name: properties[name] for name in output_fields if name in properties
+        }
+        schema["required"] = [
+            "summary",
+            "plan_steps",
+            "affected_paths",
+            "expected_tests",
+            "retained_tests",
+            "artifact_references",
+        ]
+        schema["additionalProperties"] = False
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "se_lab_planner_output",
+                "strict": True,
+                "schema": schema,
+            },
+        }
+
     def _run_planner(
         self,
         task: EvaluationTask,
@@ -587,6 +620,7 @@ class MultiAgentWorkflow:
                 "mock_patch": json.dumps(planner_payload),
             },
             config=config,
+            response_format=self._planner_response_format(),
         )
 
         try:
@@ -637,6 +671,10 @@ class MultiAgentWorkflow:
             "mock_patch": task.mock_patch,
             "planner_summary": planner_output.summary,
             "plan_steps": planner_output.plan_steps,
+            "affected_paths": planner_output.affected_paths,
+            "expected_tests": planner_output.expected_tests,
+            "retained_tests": planner_output.retained_tests,
+            "artifact_references": planner_output.artifact_references,
             "revision_instructions": revision_instructions,
         }
         implementer_response = self._request_model(
@@ -733,6 +771,7 @@ class MultiAgentWorkflow:
         run_id: str,
         config: MultiAgentConfig,
     ) -> TesterOutput:
+        self._apply_patch(workspace.repository_path, patch_path)
         self._append_event(
             event_store,
             run_id,
@@ -743,7 +782,6 @@ class MultiAgentWorkflow:
             },
             role="tester",
         )
-        self._apply_patch(workspace.repository_path, patch_path)
 
         self._append_event(
             event_store,
@@ -926,7 +964,13 @@ class MultiAgentWorkflow:
                 "Use arrays for all fields except summary. "
                 "Do not invent test results, file contents, or repository facts."
             ),
-            "implementer": "Return a valid unified git patch only.",
+            "implementer": (
+                "Return a valid unified git patch only. "
+                "Inspect the repository at the specified commit before writing the patch. "
+                "Only modify the declared allowed write paths. "
+                "Do not invent file contents or repository facts. "
+                "The patch must apply cleanly with git apply."
+            ),
             "tester": "Return a JSON test-result summary only.",
             "reviewer": "Return a JSON review decision only.",
         }.get(role, "Return a concise structured response only.")
@@ -960,6 +1004,7 @@ class MultiAgentWorkflow:
         role: str,
         metadata: dict[str, Any],
         config: MultiAgentConfig,
+        response_format: dict[str, Any] | None = None,
     ) -> ModelResponse:
         request = ModelRequest(
             task_id=task.task_id,
@@ -972,6 +1017,7 @@ class MultiAgentWorkflow:
             model_name=config.model_name,
             max_tokens=config.max_tokens,
             max_model_calls=config.max_model_calls,
+            response_format=response_format,
             metadata={**metadata, "role": role},
         )
 
@@ -1098,6 +1144,11 @@ class MultiAgentWorkflow:
 
     def _extract_patch_text(self, content: str) -> str:
         stripped = content.strip()
+        if stripped.startswith("```") and stripped.endswith("```"):
+            lines = stripped.splitlines()
+            if len(lines) >= 3 and re.fullmatch(r"```(?:diff|patch)?", lines[0].strip(), re.IGNORECASE):
+                content = "\\n".join(lines[1:-1])
+                stripped = content.strip()
         if not stripped:
             raise ValueError("Model response did not include a patch.")
         if stripped.startswith("{"):

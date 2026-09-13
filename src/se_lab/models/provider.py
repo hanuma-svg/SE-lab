@@ -21,6 +21,7 @@ class ModelRequest(BaseModel):
     model_name: str = "mock-baseline"
     max_tokens: int | None = None
     max_model_calls: int = 1
+    response_format: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -55,6 +56,7 @@ def request_identity(request: ModelRequest) -> str:
             "provider_version": request.provider_version,
             "model_name": request.model_name,
             "max_tokens": request.max_tokens,
+            "response_format": request.response_format,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -120,6 +122,8 @@ class OpenAICompatibleProvider:
         }
         if request.max_tokens is not None:
             body["max_tokens"] = request.max_tokens
+        if request.response_format is not None:
+            body["response_format"] = request.response_format
         payload = json.dumps(body).encode("utf-8")
         http_request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
