@@ -355,7 +355,7 @@ class MultiAgentWorkflow:
                             status="RETRY_EXHAUSTED",
                             summary=failure_summary,
                             budgets={
-                                "model_calls_used": model_calls_used,
+                                "model_calls_used": self._count_model_responses(event_store.read(run_id)),
                                 "tool_calls_used": tool_calls_used,
                                 "retries_used": retries_used,
                                 "elapsed_seconds": round(time.monotonic() - start_time, 3),
@@ -405,7 +405,7 @@ class MultiAgentWorkflow:
                         status="FAIL",
                         summary=failure_summary,
                         budgets={
-                            "model_calls_used": model_calls_used,
+                            "model_calls_used": self._count_model_responses(event_store.read(run_id)),
                             "tool_calls_used": tool_calls_used,
                             "retries_used": retries_used,
                             "elapsed_seconds": round(time.monotonic() - start_time, 3),
@@ -526,6 +526,10 @@ class MultiAgentWorkflow:
                 },
                 events=event_store.read(run_id),
             )
+
+    @staticmethod
+    def _count_model_responses(events: list[EventEnvelope]) -> int:
+        return sum(1 for event in events if event.event_type == "ModelResponseReceived")
 
     def _load_task(self, task: EvaluationTask | str | Path) -> EvaluationTask:
         if isinstance(task, EvaluationTask):
@@ -914,7 +918,14 @@ class MultiAgentWorkflow:
 
     def _role_prompt(self, task: EvaluationTask, role: str, metadata: dict[str, Any]) -> str:
         output = {
-            "planner": "Return a JSON implementation plan only.",
+            "planner": (
+                "Return valid JSON only. Do not use Markdown fences. "
+                'Use exactly these fields: "summary", "plan_steps", '
+                '"affected_paths", "expected_tests", "retained_tests", '
+                '"artifact_references". '
+                "Use arrays for all fields except summary. "
+                "Do not invent test results, file contents, or repository facts."
+            ),
             "implementer": "Return a valid unified git patch only.",
             "tester": "Return a JSON test-result summary only.",
             "reviewer": "Return a JSON review decision only.",

@@ -185,6 +185,13 @@ def test_real_provider_missing_usage_fails_closed(monkeypatch):
         provider.complete(_request())
 
 
+def test_ollama_provider_factory_uses_local_endpoint(monkeypatch):
+    monkeypatch.delenv("SE_LAB_OLLAMA_BASE", raising=False)
+    provider = create_provider("ollama")
+    assert isinstance(provider, OpenAICompatibleProvider)
+    assert provider.base_url == "http://127.0.0.1:11434/v1"
+
+
 def test_real_provider_factory_rejects_unknown_provider():
     with pytest.raises(ModelProviderError, match="Unsupported provider"):
         create_provider("unknown")

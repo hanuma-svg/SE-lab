@@ -262,4 +262,10 @@ def create_provider(provider_name: str, *, task_patch: str | None = None) -> Mod
         return MockModelProvider(response_text=task_patch)
     if provider_name in {"openai", "openai-compatible"}:
         return OpenAICompatibleProvider.from_environment()
+    if provider_name == "ollama":
+        return OpenAICompatibleProvider(
+            api_key="ollama-local",
+            base_url=os.environ.get("SE_LAB_OLLAMA_BASE", "http://127.0.0.1:11434/v1"),
+            timeout_seconds=int(os.environ.get("SE_LAB_PROVIDER_TIMEOUT", "120")),
+        )
     raise ModelProviderError(f"Unsupported provider: {provider_name}")

@@ -85,6 +85,27 @@ def test_multi_agent_implementer_receives_full_planner_context(tmp_path):
     assert "Return a valid unified git patch only." in prompt
 
 
+def test_planner_prompt_requires_strict_json_contract(tmp_path):
+    config_path = _fixture_config(tmp_path)
+    config = ExperimentConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
+
+    from se_lab.agents import MultiAgentWorkflow
+
+    workflow = MultiAgentWorkflow()
+    task = workflow._load_task(config.task_path)
+
+    prompt = workflow._role_prompt(task, "planner", {})
+
+    assert "valid JSON" in prompt
+    assert "Do not use Markdown fences" in prompt
+    assert '"summary"' in prompt
+    assert '"plan_steps"' in prompt
+    assert '"affected_paths"' in prompt
+    assert '"expected_tests"' in prompt
+    assert '"retained_tests"' in prompt
+    assert "Do not invent test results" in prompt
+
+
 def test_repeated_execution_fails_closed_without_mixing_evidence(tmp_path):
     config_path = _fixture_config(tmp_path)
     config = ExperimentConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
