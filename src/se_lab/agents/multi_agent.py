@@ -1041,6 +1041,10 @@ class MultiAgentWorkflow:
             planner_context = {
                 "summary": metadata.get("planner_summary", ""),
                 "plan_steps": metadata.get("plan_steps", []),
+                "affected_paths": metadata.get("affected_paths", []),
+                "expected_tests": metadata.get("expected_tests", task.target_tests),
+                "retained_tests": metadata.get("retained_tests", task.retained_tests),
+                "artifact_references": metadata.get("artifact_references", []),
             }
         planner_context_text = json.dumps(planner_context, sort_keys=True)
         revision_text = json.dumps(metadata.get("revision_instructions", []), sort_keys=True)
