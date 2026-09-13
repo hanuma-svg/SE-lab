@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -640,6 +641,58 @@ class MultiAgentWorkflow:
         )
         return planner_output
 
+    def _read_repository_file(
+        self,
+        path: str,
+        workspace: Workspace,
+        gateway: PolicyGateway,
+        event_store: EventStore,
+        run_id: str,
+        *,
+        max_bytes: int = 12000,
+    ) -> str:
+        request = ToolRequest(
+            tool_name="read_file",
+            arguments={"path": path},
+            workspace_snapshot_hash="phase-4",
+            schema_version="phase-4",
+        )
+        decision = gateway.authorize(request, workspace)
+        if decision.decision != "allow":
+            raise RuntimeError(f"Repository read rejected by policy: {decision.reason}")
+
+        candidate = workspace.repository_path / path
+        candidate = candidate.resolve()
+        if not candidate.is_relative_to(workspace.repository_path.resolve()):
+            raise RuntimeError("Repository read escaped the workspace.")
+
+        data = candidate.read_bytes()
+        if len(data) > max_bytes:
+            raise RuntimeError(f"Repository read exceeded {max_bytes} bytes.")
+
+        content = data.decode("utf-8")
+        self._append_event(
+            event_store,
+            run_id,
+            "ToolStarted",
+            {"role": "implementer", "tool_name": "read_file", "path": path},
+            role="implementer",
+        )
+        self._append_event(
+            event_store,
+            run_id,
+            "ToolObservationCaptured",
+            {
+                "tool": "read_file",
+                "path": path,
+                "bytes": len(data),
+                "content_sha256": sha256(data).hexdigest(),
+                "content": content,
+            },
+            role="implementer",
+        )
+        return content
+
     def _run_implementer(
         self,
         task: EvaluationTask,
@@ -667,6 +720,19 @@ class MultiAgentWorkflow:
             role="implementer",
         )
 
+        repository_context = {}
+        candidate_paths = planner_output.affected_paths or task.allowed_write_paths
+        for path in candidate_paths:
+            candidate = (workspace.repository_path / path).resolve()
+            if candidate.is_file() and candidate.is_relative_to(workspace.repository_path.resolve()):
+                repository_context[path] = self._read_repository_file(
+                    path,
+                    workspace,
+                    gateway,
+                    event_store,
+                    run_id,
+                )
+
         implementer_metadata: dict[str, Any] = {
             "mock_patch": task.mock_patch,
             "planner_summary": planner_output.summary,
@@ -676,6 +742,7 @@ class MultiAgentWorkflow:
             "retained_tests": planner_output.retained_tests,
             "artifact_references": planner_output.artifact_references,
             "revision_instructions": revision_instructions,
+            "repository_context": repository_context,
         }
         implementer_response = self._request_model(
             provider,
@@ -990,6 +1057,7 @@ class MultiAgentWorkflow:
             f"Retained tests: {metadata.get('retained_tests', task.retained_tests)}\n"
             f"Artifact references: {metadata.get('artifact_references', [])}\n"
             f"Revision instructions: {metadata.get('revision_instructions', [])}\n"
+            f"Repository context: {metadata.get('repository_context', {})}\n"
             f"{output}"
         )
 
@@ -1147,7 +1215,7 @@ class MultiAgentWorkflow:
         if stripped.startswith("```") and stripped.endswith("```"):
             lines = stripped.splitlines()
             if len(lines) >= 3 and re.fullmatch(r"```(?:diff|patch)?", lines[0].strip(), re.IGNORECASE):
-                content = "\\n".join(lines[1:-1])
+                content = "\n".join(lines[1:-1])
                 stripped = content.strip()
         if not stripped:
             raise ValueError("Model response did not include a patch.")
