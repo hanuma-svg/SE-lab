@@ -1,24 +1,44 @@
-# SE-lab
+# SE-Lab
 
-SE-lab is an evaluation platform for deterministic software-engineering tasks. The current bounded scope includes:
+**Multi-Agent Software Engineering Evaluation Lab**
 
-- Phase 1: core contracts, artifact/event storage, replay, reporting, and CLI scaffolding
-- Phase 2: secure workspace and policy gateway enforcement
-- Phase 3: independent evaluator for deterministic, external validation
-- Phase 4: a minimal bounded multi-agent workflow with Planner, Implementer, Tester, and Reviewer roles, using the provider abstraction and policy gateway while remaining offline and deterministic
-- Phase 5: deterministic record/replay with normalized request identity and mismatch detection
-- Phase 6: independent evaluation of quality, safety, coordination, evidence, efficiency, and failure classes
-- Phase 7: local experiment configuration, benchmark catalogues, matched runs, one meaningful ablation, aggregation, and comparison
+SE-Lab is an evaluation framework for comparing software-engineering agents under controlled, auditable conditions.
+
+> **Measure the agent, not just the final patch.**
+
+The system records agent actions, tool decisions, handoffs, artifacts, tests, policy decisions, failures, and replay evidence so experiments can be inspected after execution.
+
+## What is implemented
+
+- **Measurement spine** — typed run/event contracts, append-only JSONL evidence, and content-addressed artifacts
+- **Policy gateway** — explicit allow/deny decisions for repository operations and sensitive actions
+- **Independent evaluator** — evaluates candidate patches externally from agent internals
+- **Single-agent baseline** — deterministic offline baseline for comparison
+- **Bounded multi-agent workflow** — Planner → Implementer → Tester → Reviewer
+- **Record/replay** — normalized request identity, evidence validation, mismatch detection, and replay without live execution
+- **Evaluation lab** — quality, safety, coordination, evidence, efficiency, and failure classification
+- **Experiment workflow** — matched runs, repetitions, budgets, benchmark catalogs, aggregation, and comparison
+- **Provider abstraction** — deterministic mock provider plus an OpenAI-compatible provider with bounded calls and token accounting
+- **Security verification** — evaluator/test-oracle integrity, path containment, policy-denial, and Docker worker tests
 
 ## Phase 4 multi-agent workflow
 
-The current bounded workflow is intentionally small and isolated:
+The bounded workflow is intentionally small:
 
-- `MultiAgentWorkflow` orchestrates a Planner → Implementer → Tester → Reviewer flow
-- `ModelProvider` provides an abstraction for model access
-- `MockModelProvider` provides deterministic offline responses using `task.mock_patch`
-- each role is allowed only through the policy gateway and the shared workspace abstraction
-- the workflow records events and artifacts for every role transition, then invokes the independent evaluator for final scoring
+```text
+Planner → Implementer → Tester → Reviewer
+```
+
+The workflow:
+
+- uses the `ModelProvider` abstraction for model access
+- supports the deterministic `MockModelProvider` for offline experiments
+- supports bounded OpenAI-compatible provider calls
+- passes structured planner context into implementation
+- routes tool actions through the policy gateway
+- records role transitions, model interactions, tool actions, handoffs, and artifacts
+- invokes the independent evaluator rather than allowing the agent to grade itself
+- enforces bounded model-call, tool-call, retry, token, and wall-clock budgets where configured
 
 ### CLI usage
 
@@ -28,11 +48,8 @@ Run the multi-agent workflow against a task definition:
 se-lab multi-agent --task path/to/task.json
 ```
 
-Optional flags:
+Optional controls include:
 
-- `--run-id`
-- `--events-dir`
-- `--artifacts-dir`
 - `--seed`
 - `--max-model-calls`
 - `--max-tool-calls`
@@ -41,12 +58,11 @@ Optional flags:
 - `--provider-name`
 - `--provider-version`
 - `--model-name`
+- custom event and artifact directories
 
-### Offline test pattern
+The offline mock provider remains the reproducible path used by the recorded benchmark campaign.
 
-The workflow is designed for deterministic offline use. The built-in mock provider returns the task's `mock_patch`, so end-to-end tests can execute without external model APIs.
-
-## Phase 6 evaluation audit
+## Phase 6 independent evaluation
 
 Phase 6 consumes only externally observable `EventEnvelope` records and artifact hashes. It does not import agent or model implementations. The audit reports separate quality, safety, coordination, evidence, and efficiency metrics and never combines them into an arbitrary weighted score.
 
@@ -60,17 +76,17 @@ Evidence validation is fail-closed: malformed events, missing causal parents, no
 
 ## Phase 7 researcher workflow
 
-The local researcher workflow uses strict JSON contracts and keeps the existing offline event and artifact stores as the default. A configuration selects a task definition, baseline and/or multi-agent variants, repetitions, seed, matched budgets, and an explicit ablation. The supported meaningful ablation is `no_retries`; unsupported graph changes are reported as mismatches rather than silently simulated.
+The researcher workflow supports matched baseline/treatment experiments with repetitions, seeds, budgets, benchmark catalogs, and explicit ablations. The existing offline event and artifact stores remain the default. A configuration selects a task definition, baseline and/or multi-agent variants, repetitions, seed, matched budgets, and an explicit ablation. The supported meaningful ablation is `no_retries`; unsupported graph changes are reported as mismatches rather than silently simulated.
 
 Run an experiment, inspect a task catalog, or compare two recorded experiment results:
 
 ```bash
 se-lab experiment --config experiment.json --output result.json
-se-lab benchmark --catalog benchmarks/smoke.json
+se-lab benchmark validate --catalog benchmarks/frozen_smoke_suite.json
 se-lab compare --left baseline-result.json --right treatment-result.json
 ```
 
-Experiment output remains descriptive. It reports sample counts, pass rates, failure classes, efficiency metrics, budget validity, and mismatches without claiming that one workflow is superior or producing an arbitrary aggregate score.
+Experiment output reports sample counts, pass rates, failure classes, efficiency metrics, budget validity, and mismatches. It does not produce an arbitrary aggregate score or claim that one workflow is superior. The recorded six-run campaign uses the deterministic mock provider and validates the experiment/evidence pipeline rather than real-world LLM performance.
 
 ### Scope boundaries
 
@@ -79,8 +95,8 @@ This repository intentionally does not include:
 - LangGraph
 - PostgreSQL or MinIO
 - web dashboard features
-- external model API integrations
+- production-grade external provider qualification
 - SWE-bench evaluation harnesses
 - additional agent roles beyond the current bounded four-role workflow
 
-The goal is to provide a secure, credible foundation for future agentic work while keeping the current workflow deliberately minimal and auditable.
+The goal is to provide a credible, auditable evaluation foundation while keeping the current workflow deliberately minimal.

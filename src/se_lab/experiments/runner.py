@@ -119,7 +119,7 @@ class ExperimentRunner:
             status = result.status
             summary = result.summary
             events = result.events
-            model_calls = result.model_calls
+            model_calls = sum(1 for event in events if event.event_type == "ModelResponseReceived")
             tool_calls = sum(1 for event in events if event.event_type in {"ToolStarted", "ToolAuthorizationRequested"})
             retries = 0
         elif variant == "multi_agent":
@@ -143,7 +143,7 @@ class ExperimentRunner:
             status = result.status
             summary = result.summary
             events = result.events
-            model_calls = int(result.budgets.get("model_calls_used", 0))
+            model_calls = sum(1 for event in events if event.event_type == "ModelResponseReceived")
             tool_calls = int(result.budgets.get("tool_calls_used", 0))
             retries = int(result.budgets.get("retries_used", 0))
         else:

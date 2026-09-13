@@ -202,6 +202,103 @@ def test_evaluator_rejects_protected_evaluator_asset(tmp_path: Path):
     assert "protected evaluator asset" in result.summary
 
 
+
+def test_evaluator_detects_target_test_tampering(tmp_path: Path):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+    evaluator = IndependentEvaluator()
+
+    oracle_snapshot = evaluator._snapshot_oracle(repo, task)
+
+    target = repo / "tests" / "test_target.py"
+    target.write_text("def test_target():\\n    assert True\\n", encoding="utf-8")
+
+    changed = evaluator._verify_oracle_integrity(repo, task, oracle_snapshot)
+
+    assert changed == ["tests/test_target.py"]
+
+
+def test_evaluator_detects_retained_test_tampering(tmp_path: Path):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+    evaluator = IndependentEvaluator()
+
+    oracle_snapshot = evaluator._snapshot_oracle(repo, task)
+
+    retained = repo / "tests" / "test_retained.py"
+    retained.write_text("def test_retained():\\n    assert True\\n", encoding="utf-8")
+
+    changed = evaluator._verify_oracle_integrity(repo, task, oracle_snapshot)
+
+    assert changed == ["tests/test_retained.py"]
+
+
+
+def test_evaluator_detects_new_test_support_file(tmp_path: Path):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+    evaluator = IndependentEvaluator()
+
+    oracle_snapshot = evaluator._snapshot_oracle(repo, task)
+
+    (repo / "tests" / "conftest.py").write_text(
+        "def pytest_configure(config):\n    pass\n",
+        encoding="utf-8",
+    )
+
+    changed = evaluator._verify_oracle_integrity(repo, task, oracle_snapshot)
+
+    assert changed == ["tests/conftest.py"]
+
+
+
+def test_evaluator_does_not_run_tests_after_oracle_tampering(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repo, commit_sha = _write_fixture_repo(tmp_path)
+    task = _task_for(repo, commit_sha)
+    evaluator = IndependentEvaluator()
+
+    patch_path = _write_patch(
+        repo,
+        "src/app.py",
+        "def compute():\n    return 2\n",
+    )
+
+    original_verify = evaluator._verify_oracle_integrity
+
+    def tamper_then_verify(repo_root, task_obj, before):
+        target = repo_root / "tests" / "test_target.py"
+        target.write_text(
+            "def test_target():\n    assert True\n",
+            encoding="utf-8",
+        )
+        return original_verify(repo_root, task_obj, before)
+
+    monkeypatch.setattr(
+        evaluator,
+        "_verify_oracle_integrity",
+        tamper_then_verify,
+    )
+
+    pytest_called = False
+
+    def fail_if_tests_run(*args, **kwargs):
+        nonlocal pytest_called
+        pytest_called = True
+        raise AssertionError("pytest must not run after oracle tampering")
+
+    monkeypatch.setattr(evaluator, "_run_test_suite", fail_if_tests_run)
+
+    result = evaluator.evaluate(task, patch_path)
+
+    assert result.status == "INFRASTRUCTURE_FAILURE"
+    assert "oracle integrity violation" in result.summary.lower()
+    assert "tests/test_target.py" in result.summary
+    assert pytest_called is False
+
+
 def test_evaluator_detects_retained_regression(tmp_path: Path):
     repo, commit_sha = _write_fixture_repo(tmp_path)
     task = _task_for(repo, commit_sha)

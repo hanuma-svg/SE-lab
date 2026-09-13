@@ -99,8 +99,15 @@ def test_real_provider_malformed_response_is_rejected(monkeypatch):
 
     monkeypatch.setattr("urllib.request.urlopen", lambda *args, **kwargs: Response())
     provider = OpenAICompatibleProvider(api_key="test-only", base_url="https://example.invalid")
-    with pytest.raises(ModelProviderError, match="malformed"):
+    with pytest.raises(ModelProviderError, match="malformed") as exc_info:
         provider.complete(_request())
+
+    message = str(exc_info.value)
+    assert "choices must be a non-empty list" in message
+    assert "top_level_keys=['choices']" in message
+    assert "choice_keys=[]" in message
+    assert "test-only" not in message
+    assert "return a patch" not in message
 
 
 def test_real_provider_success_normalizes_usage_without_logging_credentials(monkeypatch):
@@ -150,6 +157,52 @@ def test_real_provider_sends_request_side_output_limit(monkeypatch):
     assert captured["authorization"] == "Bearer test-only"
 
 
+def test_real_provider_sends_structured_response_format(monkeypatch):
+    captured = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {
+                    "choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                }
+            ).encode()
+
+    def capture(request, **kwargs):
+        captured["body"] = json.loads(request.data)
+        return Response()
+
+    monkeypatch.setattr("urllib.request.urlopen", capture)
+
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "planner",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {"summary": {"type": "string"}},
+                "required": ["summary"],
+            },
+        },
+    }
+
+    request = _request().model_copy(update={"response_format": response_format})
+    OpenAICompatibleProvider(
+        api_key="test-only",
+        base_url="https://example.invalid",
+    ).complete(request)
+
+    assert captured["body"]["response_format"] == response_format
+
+
 def test_real_provider_transport_failure_is_redacted(monkeypatch):
     def fail(*args, **kwargs):
         raise urllib.error.URLError("secret-looking transport detail")
@@ -176,6 +229,13 @@ def test_real_provider_missing_usage_fails_closed(monkeypatch):
     provider = OpenAICompatibleProvider(api_key="test-only", base_url="https://example.invalid")
     with pytest.raises(ModelProviderError, match="usage"):
         provider.complete(_request())
+
+
+def test_ollama_provider_factory_uses_local_endpoint(monkeypatch):
+    monkeypatch.delenv("SE_LAB_OLLAMA_BASE", raising=False)
+    provider = create_provider("ollama")
+    assert isinstance(provider, OpenAICompatibleProvider)
+    assert provider.base_url == "http://127.0.0.1:11434/v1"
 
 
 def test_real_provider_factory_rejects_unknown_provider():

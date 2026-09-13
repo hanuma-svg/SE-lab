@@ -253,7 +253,7 @@ class PolicyGateway:
 
         candidate_path = (workspace.repository_path / candidate).resolve(strict=False)
         root_path = workspace.root.resolve(strict=False)
-        if not str(candidate_path).startswith(str(root_path)):
+        if not candidate_path.is_relative_to(root_path):
             return None
         return str(candidate_path)
 
@@ -265,13 +265,13 @@ class PolicyGateway:
     def _is_allowed_write_path(self, normalized_path: str, workspace: Workspace) -> bool:
         candidate = Path(normalized_path).resolve(strict=False)
         workspace_root = workspace.root.resolve(strict=False)
-        if not str(candidate).startswith(str(workspace_root)):
+        if not candidate.is_relative_to(workspace_root):
             return False
         if not workspace.allowed_write_paths:
             return True
         for allowed in workspace.allowed_write_paths:
             allowed_path = Path(allowed).resolve(strict=False)
-            if str(candidate).startswith(str(allowed_path)):
+            if candidate.is_relative_to(allowed_path):
                 return True
         return False
 

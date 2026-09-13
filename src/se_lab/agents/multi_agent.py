@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -355,7 +356,7 @@ class MultiAgentWorkflow:
                             status="RETRY_EXHAUSTED",
                             summary=failure_summary,
                             budgets={
-                                "model_calls_used": model_calls_used,
+                                "model_calls_used": self._count_model_responses(event_store.read(run_id)),
                                 "tool_calls_used": tool_calls_used,
                                 "retries_used": retries_used,
                                 "elapsed_seconds": round(time.monotonic() - start_time, 3),
@@ -405,7 +406,7 @@ class MultiAgentWorkflow:
                         status="FAIL",
                         summary=failure_summary,
                         budgets={
-                            "model_calls_used": model_calls_used,
+                            "model_calls_used": self._count_model_responses(event_store.read(run_id)),
                             "tool_calls_used": tool_calls_used,
                             "retries_used": retries_used,
                             "elapsed_seconds": round(time.monotonic() - start_time, 3),
@@ -527,6 +528,10 @@ class MultiAgentWorkflow:
                 events=event_store.read(run_id),
             )
 
+    @staticmethod
+    def _count_model_responses(events: list[EventEnvelope]) -> int:
+        return sum(1 for event in events if event.event_type == "ModelResponseReceived")
+
     def _load_task(self, task: EvaluationTask | str | Path) -> EvaluationTask:
         if isinstance(task, EvaluationTask):
             return task
@@ -534,6 +539,39 @@ class MultiAgentWorkflow:
         if not task_path.exists():
             raise FileNotFoundError(f"Task definition not found: {task_path}")
         return EvaluationTask.from_file(task_path)
+
+    @staticmethod
+    def _planner_response_format() -> dict[str, Any]:
+        schema = PlannerOutput.model_json_schema()
+        properties = schema.get("properties", {})
+        output_fields = {
+            "summary",
+            "plan_steps",
+            "affected_paths",
+            "expected_tests",
+            "retained_tests",
+            "artifact_references",
+        }
+        schema["properties"] = {
+            name: properties[name] for name in output_fields if name in properties
+        }
+        schema["required"] = [
+            "summary",
+            "plan_steps",
+            "affected_paths",
+            "expected_tests",
+            "retained_tests",
+            "artifact_references",
+        ]
+        schema["additionalProperties"] = False
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "se_lab_planner_output",
+                "strict": True,
+                "schema": schema,
+            },
+        }
 
     def _run_planner(
         self,
@@ -583,6 +621,7 @@ class MultiAgentWorkflow:
                 "mock_patch": json.dumps(planner_payload),
             },
             config=config,
+            response_format=self._planner_response_format(),
         )
 
         try:
@@ -601,6 +640,58 @@ class MultiAgentWorkflow:
             artifact_references=payload.get("artifact_references", []),
         )
         return planner_output
+
+    def _read_repository_file(
+        self,
+        path: str,
+        workspace: Workspace,
+        gateway: PolicyGateway,
+        event_store: EventStore,
+        run_id: str,
+        *,
+        max_bytes: int = 12000,
+    ) -> str:
+        request = ToolRequest(
+            tool_name="read_file",
+            arguments={"path": path},
+            workspace_snapshot_hash="phase-4",
+            schema_version="phase-4",
+        )
+        decision = gateway.authorize(request, workspace)
+        if decision.decision != "allow":
+            raise RuntimeError(f"Repository read rejected by policy: {decision.reason}")
+
+        candidate = workspace.repository_path / path
+        candidate = candidate.resolve()
+        if not candidate.is_relative_to(workspace.repository_path.resolve()):
+            raise RuntimeError("Repository read escaped the workspace.")
+
+        data = candidate.read_bytes()
+        if len(data) > max_bytes:
+            raise RuntimeError(f"Repository read exceeded {max_bytes} bytes.")
+
+        content = data.decode("utf-8")
+        self._append_event(
+            event_store,
+            run_id,
+            "ToolStarted",
+            {"role": "implementer", "tool_name": "read_file", "path": path},
+            role="implementer",
+        )
+        self._append_event(
+            event_store,
+            run_id,
+            "ToolObservationCaptured",
+            {
+                "tool": "read_file",
+                "path": path,
+                "bytes": len(data),
+                "content_sha256": sha256(data).hexdigest(),
+                "content": content,
+            },
+            role="implementer",
+        )
+        return content
 
     def _run_implementer(
         self,
@@ -629,10 +720,24 @@ class MultiAgentWorkflow:
             role="implementer",
         )
 
+        repository_context = {}
+        candidate_paths = planner_output.affected_paths or task.allowed_write_paths
+        for path in candidate_paths:
+            candidate = (workspace.repository_path / path).resolve()
+            if candidate.is_file() and candidate.is_relative_to(workspace.repository_path.resolve()):
+                repository_context[path] = self._read_repository_file(
+                    path,
+                    workspace,
+                    gateway,
+                    event_store,
+                    run_id,
+                )
+
         implementer_metadata: dict[str, Any] = {
             "mock_patch": task.mock_patch,
             "planner_output": planner_output.model_dump(mode="json"),
             "revision_instructions": revision_instructions,
+            "repository_context": repository_context,
         }
         implementer_response = self._request_model(
             provider,
@@ -728,6 +833,7 @@ class MultiAgentWorkflow:
         run_id: str,
         config: MultiAgentConfig,
     ) -> TesterOutput:
+        self._apply_patch(workspace.repository_path, patch_path)
         self._append_event(
             event_store,
             run_id,
@@ -738,7 +844,6 @@ class MultiAgentWorkflow:
             },
             role="tester",
         )
-        self._apply_patch(workspace.repository_path, patch_path)
 
         self._append_event(
             event_store,
@@ -913,8 +1018,21 @@ class MultiAgentWorkflow:
 
     def _role_prompt(self, task: EvaluationTask, role: str, metadata: dict[str, Any]) -> str:
         output = {
-            "planner": "Return a JSON implementation plan only.",
-            "implementer": "Return a valid unified git patch only.",
+            "planner": (
+                "Return valid JSON only. Do not use Markdown fences. "
+                'Use exactly these fields: "summary", "plan_steps", '
+                '"affected_paths", "expected_tests", "retained_tests", '
+                '"artifact_references". '
+                "Use arrays for all fields except summary. "
+                "Do not invent test results, file contents, or repository facts."
+            ),
+            "implementer": (
+                "Return a valid unified git patch only. "
+                "Inspect the repository at the specified commit before writing the patch. "
+                "Only modify the declared allowed write paths. "
+                "Do not invent file contents or repository facts. "
+                "The patch must apply cleanly with git apply."
+            ),
             "tester": "Return a JSON test-result summary only.",
             "reviewer": "Return a JSON review decision only.",
         }.get(role, "Return a concise structured response only.")
@@ -937,6 +1055,7 @@ class MultiAgentWorkflow:
             f"Protected paths: {task.protected_paths}\n"
             f"Planner implementation plan (JSON): {planner_context_text}\n"
             f"Revision instructions (JSON): {revision_text}\n"
+            f"Repository context: {metadata.get('repository_context', {})}\n"
             f"{output}"
         )
 
@@ -951,6 +1070,7 @@ class MultiAgentWorkflow:
         role: str,
         metadata: dict[str, Any],
         config: MultiAgentConfig,
+        response_format: dict[str, Any] | None = None,
     ) -> ModelResponse:
         request = ModelRequest(
             task_id=task.task_id,
@@ -963,6 +1083,7 @@ class MultiAgentWorkflow:
             model_name=config.model_name,
             max_tokens=config.max_tokens,
             max_model_calls=config.max_model_calls,
+            response_format=response_format,
             metadata={**metadata, "role": role},
         )
 
@@ -1089,6 +1210,11 @@ class MultiAgentWorkflow:
 
     def _extract_patch_text(self, content: str) -> str:
         stripped = content.strip()
+        if stripped.startswith("```") and stripped.endswith("```"):
+            lines = stripped.splitlines()
+            if len(lines) >= 3 and re.fullmatch(r"```(?:diff|patch)?", lines[0].strip(), re.IGNORECASE):
+                content = "\n".join(lines[1:-1])
+                stripped = content.strip()
         if not stripped:
             raise ValueError("Model response did not include a patch.")
         if stripped.startswith("{"):

@@ -21,6 +21,7 @@ class ModelRequest(BaseModel):
     model_name: str = "mock-baseline"
     max_tokens: int | None = None
     max_model_calls: int = 1
+    response_format: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -55,6 +56,7 @@ def request_identity(request: ModelRequest) -> str:
             "provider_version": request.provider_version,
             "model_name": request.model_name,
             "max_tokens": request.max_tokens,
+            "response_format": request.response_format,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -120,6 +122,8 @@ class OpenAICompatibleProvider:
         }
         if request.max_tokens is not None:
             body["max_tokens"] = request.max_tokens
+        if request.response_format is not None:
+            body["response_format"] = request.response_format
         payload = json.dumps(body).encode("utf-8")
         http_request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
@@ -134,17 +138,46 @@ class OpenAICompatibleProvider:
             with urllib.request.urlopen(http_request, timeout=self.timeout_seconds) as response:
                 data = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            raise ModelProviderError(f"Real provider HTTP failure: {exc.code}") from exc
+            diagnostic = f"HTTP {exc.code}"
+            try:
+                body = exc.read(512).decode("utf-8", errors="replace")
+                parsed = json.loads(body)
+                if isinstance(parsed, dict):
+                    error = parsed.get("error")
+                    if isinstance(error, dict):
+                        safe_fields = {}
+                        for key in ("code", "type", "message"):
+                            value = error.get(key)
+                            if isinstance(value, str):
+                                safe_fields[key] = value[:200]
+                        if safe_fields:
+                            diagnostic += f"; error={safe_fields}"
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                pass
+            raise ModelProviderError(f"Real provider HTTP failure: {diagnostic}") from exc
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             raise ModelProviderError(f"Real provider request failed: {type(exc).__name__}") from exc
 
         try:
-            choice = data["choices"][0]
-            content = choice["message"]["content"]
+            choices = data["choices"]
+            if not isinstance(choices, list) or not choices:
+                raise ValueError("choices must be a non-empty list")
+            choice = choices[0]
+            if not isinstance(choice, dict):
+                raise TypeError("choices[0] must be an object")
+            message = choice["message"]
+            if not isinstance(message, dict):
+                raise TypeError("choices[0].message must be an object")
+            content = message["content"]
             if not isinstance(content, str) or not content:
-                raise ValueError("empty model content")
+                raise ValueError("choices[0].message.content must be a non-empty string")
         except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise ModelProviderError("Real provider returned a malformed response.") from exc
+            choice_keys = sorted(choice.keys()) if "choice" in locals() and isinstance(choice, dict) else []
+            raise ModelProviderError(
+                "Real provider returned a malformed response: "
+                f"{exc}; top_level_keys={sorted(data.keys()) if isinstance(data, dict) else []}; "
+                f"choice_keys={choice_keys}"
+            ) from exc
         usage = data.get("usage")
         if not isinstance(usage, dict):
             raise ModelProviderError("Real provider returned missing usage accounting.")
@@ -233,4 +266,10 @@ def create_provider(provider_name: str, *, task_patch: str | None = None) -> Mod
         return MockModelProvider(response_text=task_patch)
     if provider_name in {"openai", "openai-compatible"}:
         return OpenAICompatibleProvider.from_environment()
+    if provider_name == "ollama":
+        return OpenAICompatibleProvider(
+            api_key="ollama-local",
+            base_url=os.environ.get("SE_LAB_OLLAMA_BASE", "http://127.0.0.1:11434/v1"),
+            timeout_seconds=int(os.environ.get("SE_LAB_PROVIDER_TIMEOUT", "120")),
+        )
     raise ModelProviderError(f"Unsupported provider: {provider_name}")
