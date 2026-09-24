@@ -18,6 +18,9 @@ The system records agent actions, tool decisions, handoffs, artifacts, tests, po
 - **Record/replay** — normalized request identity, evidence validation, mismatch detection, and replay without live execution
 - **Evaluation lab** — quality, safety, coordination, evidence, efficiency, and failure classification
 - **Experiment workflow** — matched runs, repetitions, budgets, benchmark catalogs, aggregation, and comparison
+- **Research statistics** — Wilson 95% intervals, paired pass differences, failure distributions, and descriptive latency summaries
+- **Durable registry** — SQLite experiment metadata and run index while evidence remains content-addressed on disk
+- **Static dashboard** — self-contained HTML report for recruiter/demo review without a backend service
 - **Provider abstraction** — deterministic mock provider plus an OpenAI-compatible provider with bounded calls and token accounting
 - **Security verification** — evaluator/test-oracle integrity, path containment, policy-denial, and Docker worker tests
 
@@ -84,9 +87,19 @@ Run an experiment, inspect a task catalog, or compare two recorded experiment re
 se-lab experiment --config experiment.json --output result.json
 se-lab benchmark validate --catalog benchmarks/frozen_smoke_suite.json
 se-lab compare --left baseline-result.json --right treatment-result.json
+se-lab dashboard --experiment-result result.json --output dashboard/index.html
+se-lab registry --store .se-lab/experiments.sqlite3
 ```
 
 Experiment output reports sample counts, pass rates, failure classes, efficiency metrics, budget validity, and mismatches. It does not produce an arbitrary aggregate score or claim that one workflow is superior. The recorded six-run campaign uses the deterministic mock provider and validates the experiment/evidence pipeline rather than real-world LLM performance.
+
+The experiment command now persists a queryable registry entry by default:
+
+```bash
+se-lab experiment --config experiment.json --output result.json --store .se-lab/experiments.sqlite3
+```
+
+The generated dashboard includes variant pass rates, Wilson confidence intervals, model/tool usage, wall-clock summaries, budget validity, and the scientific caveat that small descriptive samples do not establish superiority. It is intentionally a static artifact so the result can be published with the experiment bundle.
 
 ### Scope boundaries
 
@@ -95,8 +108,13 @@ This repository intentionally does not include:
 - LangGraph
 - PostgreSQL or MinIO
 - web dashboard features
-- production-grade external provider qualification
+- **production-grade external provider qualification**
+- PostgreSQL/MinIO deployment adapters; SQLite is the current local durable registry
 - SWE-bench evaluation harnesses
 - additional agent roles beyond the current bounded four-role workflow
 
 The goal is to provide a credible, auditable evaluation foundation while keeping the current workflow deliberately minimal.
+
+## Continuous integration
+
+GitHub Actions runs Ruff, the full Python test suite, package build checks, and the Docker security tests on Ubuntu. Docker verification is kept as a separate job so a missing local Docker daemon does not hide security regressions in CI.

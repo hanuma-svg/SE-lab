@@ -20,11 +20,13 @@ from se_lab.experiments import (
     ExperimentConfig,
     ExperimentResult,
     ExperimentRunner,
+    ExperimentStore,
     compare_experiments,
     failure_analysis,
 )
 from se_lab.replay.replay import record_run, replay_run
 from se_lab.replay.store import RecordStore
+from se_lab.reporting.dashboard import write_experiment_dashboard
 from se_lab.reporting.report import build_report
 
 
@@ -155,7 +157,12 @@ def _phase6_command(
     return 0 if audit.verdict == "PASS" else 1
 
 
-def _experiment_command(config_path: str, output: str | None = None, plan: bool = False) -> int:
+def _experiment_command(
+    config_path: str,
+    output: str | None = None,
+    plan: bool = False,
+    store_path: str | None = None,
+) -> int:
     config = ExperimentConfig.model_validate_json(Path(config_path).read_text(encoding="utf-8"))
     if plan:
         run_count = len(config.variants) * config.repetitions * len(config.ablations)
@@ -180,6 +187,8 @@ def _experiment_command(config_path: str, output: str | None = None, plan: bool 
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0 if payload["bounded"] else 1
     result = ExperimentRunner().run(config)
+    registry_path = store_path or (str(Path(output).with_suffix(".sqlite3")) if output else ".se-lab/experiments.sqlite3")
+    ExperimentStore(registry_path).save(result)
     payload = result.model_dump(mode="json")
     if output:
         target = Path(output)
@@ -187,6 +196,18 @@ def _experiment_command(config_path: str, output: str | None = None, plan: bool 
         target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0 if not result.mismatches else 1
+
+
+def _dashboard_command(experiment_result: str, output: str) -> int:
+    result = ExperimentResult.model_validate_json(Path(experiment_result).read_text(encoding="utf-8"))
+    dashboard_path = write_experiment_dashboard(result, output)
+    print(json.dumps({"status": "PASS", "output": str(dashboard_path), "experiment_id": result.experiment_id}, indent=2, sort_keys=True))
+    return 0
+
+
+def _registry_command(store_path: str) -> int:
+    print(json.dumps(ExperimentStore(store_path).list(), indent=2, sort_keys=True))
+    return 0
 
 
 def _demo_command() -> int:
@@ -456,7 +477,17 @@ def main(argv: list[str] | None = None) -> int:
     experiment_parser.add_argument("--config", required=True)
     experiment_parser.add_argument("--output")
     experiment_parser.add_argument("--plan", action="store_true")
+    experiment_parser.add_argument("--store")
     experiment_parser.set_defaults(handler=_experiment_command)
+
+    dashboard_parser = subparsers.add_parser("dashboard", help="Generate a static HTML experiment dashboard")
+    dashboard_parser.add_argument("--experiment-result", required=True)
+    dashboard_parser.add_argument("--output", required=True)
+    dashboard_parser.set_defaults(handler=_dashboard_command)
+
+    registry_parser = subparsers.add_parser("registry", help="List durable experiment metadata")
+    registry_parser.add_argument("--store", default=".se-lab/experiments.sqlite3")
+    registry_parser.set_defaults(handler=_registry_command)
 
     demo_parser = subparsers.add_parser("demo", help="Show the verified SE-Lab demonstration summary")
     demo_parser.set_defaults(handler=_demo_command)
@@ -517,7 +548,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "phase6":
             return args.handler(args.run_id, args.events_dir, args.artifacts_dir)
         if args.command == "experiment":
-            return args.handler(args.config, args.output, args.plan)
+            return args.handler(args.config, args.output, args.plan, args.store)
+        if args.command == "dashboard":
+            return args.handler(args.experiment_result, args.output)
+        if args.command == "registry":
+            return args.handler(args.store)
         if args.command == "demo":
             return args.handler()
         if args.command == "compare":

@@ -14,6 +14,7 @@ from se_lab.agents import (
 )
 from se_lab.evaluation import EvaluationTask, evaluate_events
 from se_lab.experiments.contracts import ExperimentConfig, ExperimentResult, RunRecord
+from se_lab.experiments.statistics import summarize_runs
 from se_lab.models.provider import BudgetedModelProvider, create_provider
 
 
@@ -178,25 +179,7 @@ class ExperimentRunner:
 
 
 def aggregate_runs(runs: list[RunRecord]) -> dict[str, Any]:
-    grouped: dict[str, list[RunRecord]] = {}
-    for run in runs:
-        grouped.setdefault(run.variant, []).append(run)
-    variants: dict[str, Any] = {}
-    for variant, items in sorted(grouped.items()):
-        total = len(items)
-        failure_counts: dict[str, int] = {}
-        for item in items:
-            failure_counts[item.failure_class] = failure_counts.get(item.failure_class, 0) + 1
-        variants[variant] = {
-            "sample_count": total,
-            "pass_rate": sum(item.pass_at_1 for item in items) / total if total else 0.0,
-            "failure_classes": dict(sorted(failure_counts.items())),
-            "mean_model_calls": sum(item.model_calls for item in items) / total if total else 0.0,
-            "mean_tool_calls": sum(item.tool_calls for item in items) / total if total else 0.0,
-            "mean_retries": sum(item.retries for item in items) / total if total else 0.0,
-            "mean_wall_clock_duration_seconds": sum(item.wall_clock_duration_seconds or 0.0 for item in items) / total if total else 0.0,
-        }
-    return {"sample_count": len(runs), "variants": variants}
+    return summarize_runs(runs)
 
 
 def build_experiment_report(

@@ -1,0 +1,41 @@
+name: se-lab-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install project
+        run: python -m pip install -e '.[dev]'
+      - name: Ruff
+        run: ruff check .
+      - name: Tests
+        run: pytest -q
+      - name: Build package
+        run: python -m build
+
+  docker-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install project
+        run: python -m pip install -e '.[dev]'
+      - name: Docker tests
+        run: pytest -q tests/unit/test_phase2_docker.py
