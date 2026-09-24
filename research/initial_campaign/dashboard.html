@@ -1,30 +1,128 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SE-Lab · frozen-smoke-demo</title>
-<style>
-:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#07111f; color:#e5edf7; }
-body { margin:0; background:radial-gradient(circle at top right,#17365d 0,#07111f 42rem); min-height:100vh; }
-main { max-width:1180px; margin:auto; padding:42px 24px 72px; }
-.eyebrow { color:#6ee7d8; text-transform:uppercase; letter-spacing:.14em; font-size:12px; font-weight:700; }
-h1 { font-size:42px; margin:8px 0 10px; letter-spacing:-.04em; }
-.muted { color:#93a7bf; } .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:26px 0; }
-.card { background:rgba(13,28,49,.86); border:1px solid #28425f; border-radius:16px; padding:18px; box-shadow:0 14px 42px rgba(0,0,0,.2); }
-.metric { font-size:28px; font-weight:750; margin-top:8px; } table { width:100%; border-collapse:collapse; margin-top:14px; } th,td { text-align:left; padding:13px 10px; border-bottom:1px solid #203852; } th { color:#94b6d8; font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
-.badge { display:inline-block; border-radius:999px; padding:5px 11px; background:#123f3a; color:#6ee7d8; font-weight:700; }
-pre { white-space:pre-wrap; background:#050b14; padding:16px; border-radius:12px; overflow:auto; color:#bed0e5; }
-@media(max-width:800px) { .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } h1 {font-size:32px} }
-</style></head><body><main>
-<div class="eyebrow">Software Engineering Evaluation Lab</div>
-<h1>frozen-smoke-demo</h1><p class="muted">Matched baseline/treatment experiment · descriptive evidence only</p>
-<span class="badge">PASS</span>
-<section class="grid">
-<div class="card"><div class="muted">Runs</div><div class="metric">6</div></div>
-<div class="card"><div class="muted">Variants</div><div class="metric">2</div></div>
-<div class="card"><div class="muted">Budget matched</div><div class="metric">YES</div></div>
-<div class="card"><div class="muted">Mismatches</div><div class="metric">0</div></div>
-</section>
-<div class="card"><h2>Outcome and efficiency</h2><table><thead><tr><th>Variant</th><th>n</th><th>Pass@1</th><th>95% Wilson CI</th><th>Model calls</th><th>Tool calls</th><th>Wall clock (s)</th></tr></thead><tbody><tr><td>baseline</td><td>3</td><td>100.0%</td><td>0.0% – 0.0%</td><td>1.0</td><td>1.0</td><td>2.066804</td></tr><tr><td>multi_agent</td><td>3</td><td>100.0%</td><td>0.0% – 0.0%</td><td>2.0</td><td>2.0</td><td>4.034439666666667</td></tr></tbody></table></div>
-<div class="card" style="margin-top:16px"><h2>Research caveats</h2><p class="muted">Descriptive measurements only; no claim of superiority is made without matched measured evidence.</p><p class="muted">This dashboard intentionally exposes task-level evidence and does not claim superiority from a small sample.</p></div>
-<details style="margin-top:16px"><summary>Machine-readable report</summary><pre id="data"></pre></details>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SE-Lab / frozen-smoke-demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f7f5;
+      --surface: #ffffff;
+      --ink: #202124;
+      --muted: #6b7075;
+      --line: #d9dcdf;
+      --accent: #2457a6;
+      --pass: #247447;
+      --warning: #9a6500;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+    main { max-width: 1120px; margin: 0 auto; padding: 32px 24px 64px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+    .brand { font-weight: 750; letter-spacing: -.02em; }
+    .eyebrow, .label { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+    h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.08; letter-spacing: -.04em; margin: 10px 0 8px; font-weight: 760; }
+    h2 { font-size: 18px; letter-spacing: -.015em; margin: 0 0 14px; }
+    h3 { font-size: 14px; margin: 0 0 8px; }
+    p { margin: 0 0 12px; }
+    .muted { color: var(--muted); }
+    .mono { font-family: var(--mono); font-size: .92em; }
+    .status { white-space: nowrap; border: 1px solid currentColor; border-radius: 3px; padding: 4px 9px; font-size: 12px; font-weight: 750; letter-spacing: .06em; }
+    .status.pass { color: var(--pass); } .status.warning { color: var(--warning); }
+    .section { padding: 26px 0; border-bottom: 1px solid var(--line); }
+    .section-header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 14px; }
+    .architecture { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: center; color: var(--muted); font-size: 12px; text-align: center; }
+    .architecture span { border: 1px solid var(--line); background: var(--surface); padding: 10px 6px; }
+    .architecture b { color: var(--accent); font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; background: var(--surface); border: 1px solid var(--line); }
+    th, td { text-align: left; vertical-align: top; padding: 11px 12px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: 11px; letter-spacing: .07em; text-transform: uppercase; background: #f1f2f1; }
+    tr:last-child td { border-bottom: 0; }
+    .comparison td:first-child { font-weight: 650; }
+    .comparison td:not(:first-child) { font-family: var(--mono); font-size: 13px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    .definition { display: grid; grid-template-columns: 170px 1fr; border-top: 1px solid var(--line); }
+    .definition dt, .definition dd { margin: 0; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .definition dt { color: var(--muted); }
+    .definition dd { font-family: var(--mono); font-size: 13px; }
+    .scope { margin: 0; padding-left: 18px; color: var(--muted); }
+    .scope li { margin: 4px 0; }
+    .note { border-left: 3px solid var(--accent); padding: 10px 14px; background: #eef3fb; color: #33465e; }
+    details { margin-top: 18px; } summary { cursor: pointer; color: var(--accent); font-weight: 650; }
+    pre { overflow: auto; background: #202124; color: #eef0f2; padding: 16px; font: 12px/1.5 var(--mono); }
+    footer { padding-top: 20px; color: var(--muted); font-size: 12px; }
+    @media (max-width: 760px) {
+      main { padding: 22px 16px 48px; } header, .section-header { display: block; } header .status { display: inline-block; margin-top: 16px; }
+      .architecture { grid-template-columns: 1fr; } .architecture b { transform: rotate(90deg); } .grid { grid-template-columns: 1fr; }
+      .definition { grid-template-columns: 1fr; } .definition dt { padding-bottom: 2px; border-bottom: 0; } .definition dd { padding-top: 2px; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="brand">SE-Lab</div>
+      <div class="eyebrow" style="margin-top: 20px">Experiment report</div>
+      <h1>frozen-smoke-demo</h1>
+      <p class="muted">Controlled comparison of a baseline and a bounded multi-agent software-engineering workflow.</p>
+    </div>
+    <div class="status pass">● PASS</div>
+  </header>
+
+  <section class="section">
+    <div class="section-header"><h2>Execution path</h2><span class="label">Observed architecture</span></div>
+    <div class="architecture">
+      <span>Benchmark task</span><b>→</b><span>Baseline / multi-agent</span><b>→</b><span>Policy + execution</span><b>→</b><span>Evidence + evaluation</span>
+    </div>
+    <div class="architecture" style="margin-top: 8px; grid-template-columns: repeat(3, 1fr)">
+      <span>Experiment result</span><b>→</b><span>Statistics + SQLite registry</span>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-header"><h2>Experiment metadata</h2><span class="label">No synthetic values</span></div>
+    <dl class="definition">
+      <dt>Task</dt><dd>smoke-success-readme</dd>
+      <dt>Provider</dt><dd>mock / mock-baseline</dd>
+      <dt>Runs</dt><dd>6</dd>
+      <dt>Budget valid</dt><dd>yes</dd>
+      <dt>Mismatch count</dt><dd>0</dd>
+    </dl>
+  </section>
+
+  <section class="section">
+    <div class="section-header"><h2>Baseline vs multi-agent</h2><span class="label">Descriptive comparison</span></div>
+    <table class="comparison">
+      <thead><tr><th>Metric</th><th>baseline</th><th>multi_agent</th></tr></thead>
+      <tbody>
+        <tr><td>Pass@1</td><td>3 / 3</td><td>3 / 3</td></tr>
+        <tr><td>95% Wilson CI</td><td>[0.439, 1.000]</td><td>[0.439, 1.000]</td></tr>
+        <tr><td>Mean wall time</td><td>2.067 s</td><td>4.034 s</td></tr>
+        <tr><td>Median wall time</td><td>— s</td><td>— s</td></tr>
+        <tr><td>Mean model calls</td><td>1.000</td><td>2.000</td></tr>
+        <tr><td>Mean tool calls</td><td>1.000</td><td>2.000</td></tr>
+        <tr><td>Budget valid</td><td>yes</td><td>yes</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section grid">
+    <div><h2>Failure classes</h2><table><thead><tr><th>Variant</th><th>Observed classes</th></tr></thead><tbody><tr><td class="mono">baseline</td><td class="mono">SUCCESS: 3</td></tr><tr><td class="mono">multi_agent</td><td class="mono">SUCCESS: 3</td></tr></tbody></table></div>
+    <div><h2>Scope</h2><ul class="scope"><li>deterministic/mock provider</li><li>curated smoke benchmark</li><li>bounded execution</li><li>descriptive statistics</li></ul><p class="note" style="margin-top: 16px">This report demonstrates evaluation infrastructure. It does not establish multi-agent superiority or statistical significance.</p></div>
+  </section>
+
+  <section class="section">
+    <h2>Technical notes</h2>
+    <p class="muted">Runs preserve model calls, tool calls, retries, wall-clock duration, failure class, budget validity, evidence digest, and evidence directory. The evaluator consumes externally observable evidence rather than agent self-reports.</p>
+    <details><summary>Machine-readable report</summary><pre id="data"></pre></details>
+  </section>
+  <footer>Generated from the recorded experiment result. No metrics are hard-coded into this report.</footer>
+</main>
 <script>document.getElementById('data').textContent = JSON.stringify({"aggregation": {"sample_count": 6, "variants": {"baseline": {"failure_classes": {"SUCCESS": 3}, "mean_model_calls": 1.0, "mean_retries": 0.0, "mean_tool_calls": 1.0, "mean_wall_clock_duration_seconds": 2.066804, "pass_rate": 1.0, "sample_count": 3}, "multi_agent": {"failure_classes": {"SUCCESS": 3}, "mean_model_calls": 2.0, "mean_retries": 0.0, "mean_tool_calls": 2.0, "mean_wall_clock_duration_seconds": 4.034439666666667, "pass_rate": 1.0, "sample_count": 3}}}, "config_hash": "67f19ccb05996a6d6064353216a9035c8d4749fa1187dffe9dfaff3260d64100", "experiment_id": "frozen-smoke-demo", "mismatches": [], "report": {"aggregation": {"sample_count": 6, "variants": {"baseline": {"failure_classes": {"SUCCESS": 3}, "mean_model_calls": 1.0, "mean_retries": 0.0, "mean_tool_calls": 1.0, "mean_wall_clock_duration_seconds": 2.066804, "pass_rate": 1.0, "sample_count": 3}, "multi_agent": {"failure_classes": {"SUCCESS": 3}, "mean_model_calls": 2.0, "mean_retries": 0.0, "mean_tool_calls": 2.0, "mean_wall_clock_duration_seconds": 4.034439666666667, "pass_rate": 1.0, "sample_count": 3}}}, "experiment_id": "frozen-smoke-demo", "matched_budget": {"max_model_calls": 4, "max_retries": 1, "max_tokens": null, "max_tool_calls": 30, "max_wall_clock": 30}, "matched_budget_valid": true, "mismatches": [], "provider": {"model": "mock-baseline", "name": "mock", "version": "mock-v1"}, "repetitions": 3, "report_type": "experiment", "runs": [{"ablation": "full", "budget_match": true, "evidence_digest": "f152b42c84fe909690aee051a5be25187f04ad7bfc37d2cb2819d87c0bbbc19f", "evidence_dir": ".se-lab/frozen-smoke-demo/frozen-smoke-demo/frozen-smoke-demo-baseline-full-r1", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 1, "pass_at_1": true, "repetition": 1, "retries": 0, "run_id": "frozen-smoke-demo-baseline-full-r1", "seed": 7, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 1, "variant": "baseline", "wall_clock_duration_seconds": 2.13755}, {"ablation": "full", "budget_match": true, "evidence_digest": "be1c563d9c067204dcabfff86b8c8847d25fd64da7697d3c737fa3b254a0ed08", "evidence_dir": ".se-lab/frozen-smoke-demo/frozen-smoke-demo/frozen-smoke-demo-multi_agent-full-r1", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 2, "pass_at_1": true, "repetition": 1, "retries": 0, "run_id": "frozen-smoke-demo-multi_agent-full-r1", "seed": 7, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 2, "variant": "multi_agent", "wall_clock_duration_seconds": 4.357548}, {"ablation": "full", "budget_match": true, "evidence_digest": "48d6f24a6fb07cfeec51f088ee22ea976d2d0adb27c0c170101be3a703def232", "evidence_dir": ".se-lab/frozen-smoke-demo/frozen-smoke-demo/frozen-smoke-demo-baseline-full-r2", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 1, "pass_at_1": true, "repetition": 2, "retries": 0, "run_id": "frozen-smoke-demo-baseline-full-r2", "seed": 8, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 1, "variant": "baseline", "wall_clock_duration_seconds": 2.063067}, {"ablation": "full", "budget_match": true, "evidence_digest": "5d0fa24dad86af3f7c3a945677cf98e6f2c5fff891374cd43aa84b4c08fc0e8c", "evidence_dir": ".se-lab/frozen-smoke-demo/frozen-smoke-demo/frozen-smoke-demo-multi_agent-full-r2", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 2, "pass_at_1": true, "repetition": 2, "retries": 0, "run_id": "frozen-smoke-demo-multi_agent-full-r2", "seed": 8, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 2, "variant": "multi_agent", "wall_clock_duration_seconds": 3.900638}, {"ablation": "full", "budget_match": true, "evidence_digest": "1adbc0dbace69c4de33d739581916b01f81dda1dbbb192a0b48ec8e5d95bd1ba", "evidence_dir": ".se-lab/frozen-smoke-demo/frozen-smoke-demo/frozen-smoke-demo-baseline-full-r3", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 1, "pass_at_1": true, "repetition": 3, "retries": 0, "run_id": "frozen-smoke-demo-baseline-full-r3", "seed": 9, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 1, "variant": "baseline", "wall_clock_duration_seconds": 1.999795}, {"ablation": "full", "budget_match": true, "evidence_digest": "f1a9e71721efca4b452fda92e3831b25fa4d61712553b4f22088ee4af9a17986", "evidence_dir": ".se-lab/frozen-smoke-demo/frozen-smoke-demo/frozen-smoke-demo-multi_agent-full-r3", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 2, "pass_at_1": true, "repetition": 3, "retries": 0, "run_id": "frozen-smoke-demo-multi_agent-full-r3", "seed": 9, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 2, "variant": "multi_agent", "wall_clock_duration_seconds": 3.845133}], "safety": {"allowed_write_paths": ["README.md"], "network_enabled": false, "protected_paths": ["src/se_lab/evaluation"]}, "scientific_note": "Descriptive measurements only; no claim of superiority is made without matched measured evidence.", "seed": 7, "task_base_commit": "9c2f136", "task_id": "smoke-success-readme", "task_path": "benchmarks/smoke_tasks/success_readme.json", "variants": ["baseline", "multi_agent"]}, "runs": [{"ablation": "full", "budget_match": true, "evidence_digest": "f152b42c84fe909690aee051a5be25187f04ad7bfc37d2cb2819d87c0bbbc19f", "evidence_dir": "research/initial_campaign/evidence/frozen-smoke-demo/frozen-smoke-demo-baseline-full-r1", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 1, "pass_at_1": true, "repetition": 1, "retries": 0, "run_id": "frozen-smoke-demo-baseline-full-r1", "seed": 7, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 1, "variant": "baseline", "wall_clock_duration_seconds": 2.13755}, {"ablation": "full", "budget_match": true, "evidence_digest": "be1c563d9c067204dcabfff86b8c8847d25fd64da7697d3c737fa3b254a0ed08", "evidence_dir": "research/initial_campaign/evidence/frozen-smoke-demo/frozen-smoke-demo-multi_agent-full-r1", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 2, "pass_at_1": true, "repetition": 1, "retries": 0, "run_id": "frozen-smoke-demo-multi_agent-full-r1", "seed": 7, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 2, "variant": "multi_agent", "wall_clock_duration_seconds": 4.357548}, {"ablation": "full", "budget_match": true, "evidence_digest": "48d6f24a6fb07cfeec51f088ee22ea976d2d0adb27c0c170101be3a703def232", "evidence_dir": "research/initial_campaign/evidence/frozen-smoke-demo/frozen-smoke-demo-baseline-full-r2", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 1, "pass_at_1": true, "repetition": 2, "retries": 0, "run_id": "frozen-smoke-demo-baseline-full-r2", "seed": 8, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 1, "variant": "baseline", "wall_clock_duration_seconds": 2.063067}, {"ablation": "full", "budget_match": true, "evidence_digest": "5d0fa24dad86af3f7c3a945677cf98e6f2c5fff891374cd43aa84b4c08fc0e8c", "evidence_dir": "research/initial_campaign/evidence/frozen-smoke-demo/frozen-smoke-demo-multi_agent-full-r2", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 2, "pass_at_1": true, "repetition": 2, "retries": 0, "run_id": "frozen-smoke-demo-multi_agent-full-r2", "seed": 8, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 2, "variant": "multi_agent", "wall_clock_duration_seconds": 3.900638}, {"ablation": "full", "budget_match": true, "evidence_digest": "1adbc0dbace69c4de33d739581916b01f81dda1dbbb192a0b48ec8e5d95bd1ba", "evidence_dir": "research/initial_campaign/evidence/frozen-smoke-demo/frozen-smoke-demo-baseline-full-r3", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 1, "pass_at_1": true, "repetition": 3, "retries": 0, "run_id": "frozen-smoke-demo-baseline-full-r3", "seed": 9, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 1, "variant": "baseline", "wall_clock_duration_seconds": 1.999795}, {"ablation": "full", "budget_match": true, "evidence_digest": "f1a9e71721efca4b452fda92e3831b25fa4d61712553b4f22088ee4af9a17986", "evidence_dir": "research/initial_campaign/evidence/frozen-smoke-demo/frozen-smoke-demo-multi_agent-full-r3", "experiment_id": "frozen-smoke-demo", "failure_class": "SUCCESS", "model_calls": 2, "pass_at_1": true, "repetition": 3, "retries": 0, "run_id": "frozen-smoke-demo-multi_agent-full-r3", "seed": 9, "status": "PASS", "summary": "All target and retained tests passed.", "tool_calls": 2, "variant": "multi_agent", "wall_clock_duration_seconds": 3.845133}]}, null, 2);</script>
-</main></body></html>
+</body>
+</html>
