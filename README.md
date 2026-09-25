@@ -107,8 +107,7 @@ This repository intentionally does not include:
 
 - LangGraph
 - PostgreSQL or MinIO
-- web dashboard features
-- **production-grade external provider qualification**
+    - **production-grade external provider qualification**
 - PostgreSQL/MinIO deployment adapters; SQLite is the current local durable registry
 - SWE-bench evaluation harnesses
 - additional agent roles beyond the current bounded four-role workflow
@@ -126,10 +125,6 @@ The repository also includes a thin public-demo surface: a React/TypeScript Vite
 ### Live demo
 
 The current sandbox deployment is available at [SE-Lab Experiment Console](https://8000-ixc5jcy5cxy08i5qhknvw-8f7d8073.sg2.manus.computer/). It is a temporary public service URL for demonstration and verification, not a production deployment. The public process uses local SQLite persistence; history should therefore be treated as deployment-local and non-durable if the sandbox is recycled.
-
-### Live demo
-
-The verified sandbox deployment is available at [SE-Lab Experiment Console](https://8000-ixc5jcy5cxy08i5qhknvw-8f7d8073.sg2.manus.computer). This URL is a temporary public sandbox service rather than a durable production deployment; its SQLite history is tied to the active service filesystem.
 
 ### Local setup
 
