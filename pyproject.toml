@@ -18,6 +18,10 @@ dev = [
   "ruff>=0.6",
   "build>=1.2",
 ]
+web = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.30",
+]
 
 [project.scripts]
 se-lab = "se_lab.cli:main"

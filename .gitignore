@@ -5,3 +5,6 @@ __pycache__/
 *.pyc
 
 src/se_lab.egg-info/
+web/node_modules/
+web/dist/
+web/tsconfig.tsbuildinfo

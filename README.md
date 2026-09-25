@@ -118,3 +118,44 @@ The goal is to provide a credible, auditable evaluation foundation while keeping
 ## Continuous integration
 
 GitHub Actions runs Ruff, the full Python test suite, package build checks, and the Docker security tests on Ubuntu. Docker verification is kept as a separate job so a missing local Docker daemon does not hide security regressions in CI.
+
+## Web console
+
+The repository also includes a thin public-demo surface: a React/TypeScript Vite console calls a small FastAPI REST API, which reuses the existing benchmark catalog, bounded workflows, policy gateway, evaluator, experiment runner, statistics, and SQLite registry. The API exposes only the three predefined frozen smoke tasks and the deterministic mock provider; it does not accept arbitrary commands, repositories, paths, uploads, or provider credentials.
+
+### Live demo
+
+The current sandbox deployment is available at [SE-Lab Experiment Console](https://8000-ixc5jcy5cxy08i5qhknvw-8f7d8073.sg2.manus.computer/). It is a temporary public service URL for demonstration and verification, not a production deployment. The public process uses local SQLite persistence; history should therefore be treated as deployment-local and non-durable if the sandbox is recycled.
+
+### Live demo
+
+The verified sandbox deployment is available at [SE-Lab Experiment Console](https://8000-ixc5jcy5cxy08i5qhknvw-8f7d8073.sg2.manus.computer). This URL is a temporary public sandbox service rather than a durable production deployment; its SQLite history is tied to the active service filesystem.
+
+### Local setup
+
+```bash
+python3 -m pip install -e '.[web]'
+cd web
+npm install
+npm run build
+cd ..
+uvicorn se_lab.web_api:app --host 0.0.0.0 --port 8000
+```
+
+Open `http://localhost:8000`. During frontend development, run `npm run dev` from `web/`; Vite proxies `/api` requests to the FastAPI server on port 8000.
+
+### Web architecture
+
+```text
+React / TypeScript
+        ↓ REST
+FastAPI
+        ↓
+SE-Lab engine
+        ↓
+Policy + execution → evidence → independent evaluation
+        ↓
+Statistics + SQLite registry
+```
+
+The public demo uses a deterministic/mock provider, a curated smoke benchmark, bounded execution, and descriptive statistics. SQLite persistence is local filesystem persistence; deployment environments with ephemeral filesystems must not be described as durable history.
